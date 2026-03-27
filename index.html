@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Contract Summarizer Agent</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@300;400;500;600&display=swap');
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #F7F5F0; --surface: #FFFFFF; --surface2: #F0EDE6;
+    --border: #DDD9D0; --border-dark: #B8B3A8;
+    --text: #1A1714; --text-muted: #6B6560; --text-faint: #9E9891;
+    --accent: #2B4A3F; --accent-light: #E8F0EE;
+    --accent2: #8B3A2A; --accent2-light: #F5EAE7;
+    --warning: #7A5C1A; --warning-light: #F7F0E1;
+    --info: #1A3D5C; --info-light: #E6EFF5;
+    --radius: 10px; --radius-sm: 6px;
+    --shadow: 0 2px 12px rgba(0,0,0,0.07);
+  }
+  body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; line-height: 1.6; }
+
+  /* ── Gate screen ── */
+  .gate {
+    min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  .gate-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); box-shadow: var(--shadow);
+    padding: 40px; max-width: 420px; width: 100%; text-align: center;
+  }
+  .gate-icon { font-size: 48px; margin-bottom: 16px; }
+  .gate-card h1 { font-family: 'Lora', serif; font-size: 24px; font-weight: 600; margin-bottom: 8px; }
+  .gate-card p { font-size: 14px; color: var(--text-muted); margin-bottom: 24px; }
+  .gate-features { text-align: left; margin-bottom: 24px; }
+  .gate-features li { font-size: 13px; padding: 5px 0; list-style: none; display: flex; gap: 8px; align-items: flex-start; }
+  .gate-features li::before { content: '✓'; color: var(--accent); font-weight: 600; flex-shrink: 0; }
+  input[type="email"] {
+    width: 100%; padding: 11px 14px; border: 1px solid var(--border);
+    border-radius: var(--radius-sm); font-family: 'DM Sans', sans-serif;
+    font-size: 14px; color: var(--text); background: var(--surface);
+    margin-bottom: 12px; transition: border-color 0.2s;
+  }
+  input[type="email"]:focus { outline: none; border-color: var(--accent); }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 11px 22px; border-radius: var(--radius-sm); font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.18s; border: none; }
+  .btn-primary { background: var(--accent); color: #fff; width: 100%; }
+  .btn-primary:hover:not(:disabled) { background: #1e3a30; }
+  .btn-primary:disabled { opacity: 0.55; cursor: not-allowed; }
+  .btn-stripe { background: #635BFF; color: #fff; width: 100%; margin-top: 8px; }
+  .btn-stripe:hover { background: #4f46e5; }
+
+  /* ── Header ── */
+  .header { background: var(--accent); color: #fff; padding: 16px 32px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+  .header-left { display: flex; align-items: center; gap: 14px; }
+  .header-icon { width: 38px; height: 38px; background: rgba(255,255,255,0.15); border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; font-size: 20px; }
+  .header h1 { font-family: 'Lora', serif; font-size: 20px; font-weight: 600; }
+  .header-right { display: flex; align-items: center; gap: 14px; }
+  .usage-badge {
+    font-size: 12px; background: rgba(255,255,255,0.15); border-radius: 20px;
+    padding: 5px 14px; color: rgba(255,255,255,0.9);
+  }
+  .usage-badge.warning { background: rgba(220,160,60,0.3); }
+  .user-pill { font-size: 12px; color: rgba(255,255,255,0.7); }
+  .btn-signout { font-size: 12px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: #fff; padding: 5px 12px; border-radius: 20px; cursor: pointer; font-family: 'DM Sans', sans-serif; }
+  .btn-signout:hover { background: rgba(255,255,255,0.2); }
+
+  /* ── Upgrade banner ── */
+  .upgrade-banner {
+    background: var(--warning-light); border-bottom: 1px solid #e0c97a;
+    padding: 10px 32px; display: flex; align-items: center; justify-content: space-between;
+    font-size: 13px; color: var(--warning);
+  }
+  .btn-upgrade { background: var(--warning); color: #fff; padding: 6px 16px; border-radius: 20px; font-size: 12px; font-weight: 600; cursor: pointer; font-family: 'DM Sans', sans-serif; border: none; }
+  .btn-upgrade:hover { background: #5a4312; }
+
+  /* ── Main layout ── */
+  .main { max-width: 1100px; margin: 0 auto; padding: 28px 24px; }
+  .two-col { display: grid; grid-template-columns: 360px 1fr; gap: 24px; align-items: start; }
+  .panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
+  .panel-header { padding: 12px 18px; border-bottom: 1px solid var(--border); font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); }
+  .panel-body { padding: 18px; }
+
+  .drop-zone { border: 2px dashed var(--border-dark); border-radius: var(--radius-sm); padding: 28px 16px; text-align: center; cursor: pointer; transition: all 0.2s; background: var(--surface2); }
+  .drop-zone:hover, .drop-zone.drag-over { border-color: var(--accent); background: var(--accent-light); }
+  .drop-zone .dz-icon { font-size: 32px; margin-bottom: 8px; }
+  .drop-zone p { font-size: 14px; color: var(--text-muted); }
+  .drop-zone span { font-size: 12px; color: var(--text-faint); display: block; margin-top: 4px; }
+  #fileInput { display: none; }
+
+  .file-chip { display: flex; align-items: center; gap: 10px; background: var(--accent-light); border: 1px solid var(--accent); border-radius: var(--radius-sm); padding: 10px 14px; margin-top: 10px; font-size: 13px; color: var(--accent); }
+  .file-chip .chip-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+  .chip-remove { cursor: pointer; opacity: 0.6; }
+  .chip-remove:hover { opacity: 1; }
+
+  textarea.contract-text { width: 100%; min-height: 140px; resize: vertical; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; font-family: 'DM Sans', sans-serif; font-size: 13px; color: var(--text); background: var(--surface); line-height: 1.6; transition: border-color 0.2s; margin-top: 10px; }
+  textarea.contract-text:focus { outline: none; border-color: var(--accent); }
+  textarea.contract-text::placeholder { color: var(--text-faint); }
+
+  .divider { display: flex; align-items: center; gap: 10px; margin: 12px 0; color: var(--text-faint); font-size: 12px; }
+  .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+  select.opt-select { font-family: 'DM Sans', sans-serif; font-size: 12px; padding: 5px 8px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--text); cursor: pointer; }
+  select.opt-select:focus { outline: none; border-color: var(--accent); }
+  .opt-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; }
+  .opt-label { font-size: 13px; }
+  .opt-sub { font-size: 11px; color: var(--text-faint); }
+
+  /* ── Output ── */
+  .output-empty { padding: 60px 24px; text-align: center; color: var(--text-faint); }
+  .output-empty .big-icon { font-size: 48px; margin-bottom: 16px; opacity: 0.5; }
+  .output-empty p { font-size: 15px; }
+  .output-empty span { font-size: 13px; display: block; margin-top: 6px; }
+  .loading { padding: 48px 24px; text-align: center; }
+  .spinner { width: 36px; height: 36px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 16px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading p { font-size: 14px; color: var(--text-muted); }
+  .loading span { font-size: 12px; color: var(--text-faint); display: block; margin-top: 4px; }
+
+  .summary-wrap { padding: 24px; }
+  .doc-badge { display: inline-flex; align-items: center; gap: 8px; background: var(--accent-light); border: 1px solid rgba(43,74,63,0.25); border-radius: 20px; padding: 5px 14px; font-size: 12px; color: var(--accent); font-weight: 500; margin-bottom: 20px; }
+  .exec-summary { background: var(--accent-light); border-left: 4px solid var(--accent); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; padding: 14px 18px; margin-bottom: 22px; }
+  .exec-summary h3 { font-family: 'Lora', serif; font-size: 15px; color: var(--accent); margin-bottom: 8px; }
+  .exec-summary ul { list-style: none; }
+  .exec-summary ul li { font-size: 13px; padding: 3px 0; display: flex; gap: 8px; }
+  .exec-summary ul li::before { content: '›'; color: var(--accent); font-weight: 600; flex-shrink: 0; }
+
+  .section { margin-bottom: 20px; }
+  .section-title { font-family: 'Lora', serif; font-size: 15px; font-weight: 600; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; }
+  .s-icon { width: 24px; height: 24px; border-radius: 5px; display: flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0; }
+
+  .kv-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .kv-item { background: var(--surface2); border-radius: var(--radius-sm); padding: 10px 12px; }
+  .kv-item .kv-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-faint); margin-bottom: 4px; }
+  .kv-item .kv-val { font-size: 13px; font-weight: 500; }
+
+  .obligation-row { display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13.5px; }
+  .obligation-row:last-child { border-bottom: none; }
+  .ob-party { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; padding: 3px 8px; border-radius: 20px; flex-shrink: 0; margin-top: 1px; min-width: 70px; text-align: center; }
+  .ob-party-a { background: var(--info-light); color: var(--info); }
+  .ob-party-b { background: var(--accent-light); color: var(--accent); }
+  .ob-party-both { background: var(--surface2); color: var(--text-muted); }
+
+  .risk-card { border-left: 3px solid; border-radius: 0 var(--radius-sm) var(--radius-sm) 0; padding: 10px 14px; margin-bottom: 8px; }
+  .risk-high { border-color: var(--accent2); background: var(--accent2-light); }
+  .risk-medium { border-color: var(--warning); background: var(--warning-light); }
+  .risk-low { border-color: var(--accent); background: var(--accent-light); }
+  .risk-card .risk-title { font-size: 13px; font-weight: 600; margin-bottom: 3px; }
+  .risk-card .risk-body { font-size: 13px; color: var(--text-muted); line-height: 1.5; }
+
+  .missing-item { display: flex; align-items: flex-start; gap: 8px; padding: 7px 10px; background: var(--surface2); border-radius: var(--radius-sm); margin-bottom: 6px; font-size: 13px; }
+  .missing-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--warning); flex-shrink: 0; margin-top: 6px; }
+
+  .clarif-item { display: flex; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13.5px; }
+  .clarif-item:last-child { border-bottom: none; }
+  .clarif-num { font-family: 'Lora', serif; font-size: 15px; font-weight: 600; color: var(--text-faint); flex-shrink: 0; width: 20px; }
+
+  .balance-bar { height: 10px; border-radius: 5px; background: var(--surface2); overflow: hidden; margin: 8px 0; }
+  .balance-fill { height: 100%; border-radius: 5px; background: linear-gradient(90deg, var(--accent2), var(--warning), var(--accent)); }
+  .balance-labels { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-faint); }
+
+  .disclaimer { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px 16px; font-size: 12px; color: var(--text-faint); line-height: 1.6; margin-top: 20px; }
+  .disclaimer strong { color: var(--text-muted); }
+  .copy-btn { margin-top: 14px; background: var(--surface2); border: 1px solid var(--border); color: var(--text-muted); font-family: 'DM Sans', sans-serif; font-size: 13px; padding: 8px 16px; border-radius: var(--radius-sm); cursor: pointer; transition: all 0.15s; }
+  .copy-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .error-box { background: var(--accent2-light); border: 1px solid var(--accent2); border-radius: var(--radius-sm); padding: 14px 18px; font-size: 13px; color: var(--accent2); margin: 24px; }
+
+  /* ── Upgrade wall inside output ── */
+  .upgrade-wall { padding: 48px 32px; text-align: center; }
+  .upgrade-wall .uw-icon { font-size: 48px; margin-bottom: 16px; }
+  .upgrade-wall h2 { font-family: 'Lora', serif; font-size: 22px; margin-bottom: 10px; }
+  .upgrade-wall p { font-size: 14px; color: var(--text-muted); margin-bottom: 24px; line-height: 1.7; }
+  .price-card { background: var(--accent-light); border: 2px solid var(--accent); border-radius: var(--radius); padding: 20px; margin-bottom: 20px; display: inline-block; min-width: 220px; }
+  .price-card .price { font-family: 'Lora', serif; font-size: 36px; font-weight: 600; color: var(--accent); }
+  .price-card .price-sub { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
+  .price-card .price-features { margin-top: 12px; text-align: left; }
+  .price-card .price-features li { font-size: 13px; list-style: none; padding: 3px 0; display: flex; gap: 8px; }
+  .price-card .price-features li::before { content: '✓'; color: var(--accent); font-weight: 600; }
+
+  @media (max-width: 820px) {
+    .two-col { grid-template-columns: 1fr; }
+    .kv-grid { grid-template-columns: 1fr; }
+    .header { padding: 12px 16px; flex-wrap: wrap; }
+    .main { padding: 16px 12px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ── GATE SCREEN ── -->
+<div class="gate" id="gateScreen">
+  <div class="gate-card">
+    <div class="gate-icon">📜</div>
+    <h1>Contract Summarizer</h1>
+    <p>Enter your email to get started. No password needed — just your email to track your free analyses.</p>
+    <ul class="gate-features">
+      <li>3 free contract analyses</li>
+      <li>Plain-English summaries for non-lawyers</li>
+      <li>Red flags, risk areas, and missing clauses</li>
+      <li>Unlimited analyses from $19/month</li>
+    </ul>
+    <input type="email" id="gateEmail" placeholder="your@email.com" />
+    <button class="btn btn-primary" onclick="startSession()">Get Started →</button>
+  </div>
+</div>
+
+<!-- ── MAIN APP ── -->
+<div id="appScreen" style="display:none;">
+  <div class="header">
+    <div class="header-left">
+      <div class="header-icon">📜</div>
+      <div>
+        <h1>Contract Summarizer</h1>
+      </div>
+    </div>
+    <div class="header-right">
+      <span class="usage-badge" id="usageBadge">Loading…</span>
+      <span class="user-pill" id="userPill"></span>
+      <button class="btn-signout" onclick="signOut()">Sign out</button>
+    </div>
+  </div>
+
+  <div id="upgradeBanner" style="display:none;" class="upgrade-banner">
+    <span>⚡ You've used all 3 free analyses. Upgrade to continue analyzing contracts.</span>
+    <button class="btn-upgrade" onclick="goUpgrade()">Upgrade — $19/month</button>
+  </div>
+
+  <div class="main">
+    <div class="two-col">
+      <!-- Left panel -->
+      <div>
+        <div class="panel">
+          <div class="panel-header">📁 &nbsp;Input Contract</div>
+          <div class="panel-body">
+            <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+              <div class="dz-icon">📄</div>
+              <p>Drop a PDF or text file here</p>
+              <span>or click to browse</span>
+            </div>
+            <input type="file" id="fileInput" accept=".pdf,.txt,.doc,.docx,.rtf" />
+            <div id="fileChip" style="display:none;" class="file-chip">
+              <span>📎</span>
+              <span class="chip-name" id="chipName"></span>
+              <span class="chip-remove" onclick="clearFile()">✕</span>
+            </div>
+            <div class="divider">or paste contract text</div>
+            <textarea class="contract-text" id="contractText" placeholder="Paste the full contract text here…"></textarea>
+          </div>
+        </div>
+
+        <div class="panel" style="margin-top:14px;">
+          <div class="panel-header">⚙️ &nbsp;Options</div>
+          <div class="panel-body">
+            <div class="opt-row">
+              <div><div class="opt-label">Contract Type</div><div class="opt-sub">Tailor the analysis</div></div>
+              <select class="opt-select" id="contractType">
+                <option value="auto">Auto-detect</option>
+                <option value="service">Service Agreement</option>
+                <option value="employment">Employment</option>
+                <option value="nda">NDA</option>
+                <option value="saas">SaaS / Software</option>
+                <option value="lease">Lease</option>
+                <option value="partnership">Partnership / JV</option>
+                <option value="purchase">Purchase / Sales</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+            <div class="opt-row" style="border-top:1px solid var(--border);padding-top:10px;">
+              <div><div class="opt-label">Detail Level</div><div class="opt-sub">Depth of summary</div></div>
+              <select class="opt-select" id="outputDetail">
+                <option value="standard">Standard</option>
+                <option value="executive">Executive (brief)</option>
+                <option value="detailed">Detailed</option>
+              </select>
+            </div>
+            <div class="opt-row" style="border-top:1px solid var(--border);padding-top:10px;">
+              <div><div class="opt-label">Perspective</div><div class="opt-sub">Whose risks to highlight</div></div>
+              <select class="opt-select" id="perspective">
+                <option value="neutral">Neutral</option>
+                <option value="party1">First party</option>
+                <option value="party2">Second party</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <button class="btn btn-primary" id="analyzeBtn" onclick="analyzeContract()" style="margin-top:14px;">
+          🔍 &nbsp;Analyze Contract
+        </button>
+      </div>
+
+      <!-- Right panel -->
+      <div class="panel" id="outputPanel">
+        <div class="panel-header">📋 &nbsp;Contract Summary</div>
+        <div id="outputBody">
+          <div class="output-empty">
+            <div class="big-icon">📑</div>
+            <p>No contract analyzed yet</p>
+            <span>Upload a file or paste text, then click Analyze.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let currentEmail = null;
+let uploadedFileContent = null;
+let uploadedFileName = null;
+
+// ── Session management (localStorage for email only — no sensitive data)
+function startSession() {
+  const email = document.getElementById('gateEmail').value.trim();
+  if (!email || !email.includes('@')) { alert('Please enter a valid email.'); return; }
+  currentEmail = email;
+  localStorage.setItem('cs_email', email);
+  showApp();
+}
+
+function signOut() {
+  localStorage.removeItem('cs_email');
+  currentEmail = null;
+  document.getElementById('gateScreen').style.display = 'flex';
+  document.getElementById('appScreen').style.display = 'none';
+  document.getElementById('outputBody').innerHTML = `<div class="output-empty"><div class="big-icon">📑</div><p>No contract analyzed yet</p><span>Upload a file or paste text, then click Analyze.</span></div>`;
+}
+
+function showApp() {
+  document.getElementById('gateScreen').style.display = 'none';
+  document.getElementById('appScreen').style.display = 'block';
+  document.getElementById('userPill').textContent = currentEmail;
+  loadStatus();
+}
+
+async function loadStatus() {
+  try {
+    const res = await fetch(`/api/status?email=${encodeURIComponent(currentEmail)}`);
+    const data = await res.json();
+    updateUsageUI(data);
+  } catch (e) { /* silent fail */ }
+}
+
+function updateUsageUI({ count, limit, subscribed }) {
+  const badge = document.getElementById('usageBadge');
+  const banner = document.getElementById('upgradeBanner');
+  const analyzeBtn = document.getElementById('analyzeBtn');
+
+  if (subscribed) {
+    badge.textContent = '✓ Subscribed — Unlimited';
+    badge.classList.remove('warning');
+    banner.style.display = 'none';
+    analyzeBtn.disabled = false;
+  } else {
+    const remaining = Math.max(0, limit - count);
+    badge.textContent = `${remaining} free ${remaining === 1 ? 'analysis' : 'analyses'} left`;
+    if (remaining <= 1) badge.classList.add('warning');
+    if (remaining === 0) {
+      banner.style.display = 'flex';
+      analyzeBtn.disabled = true;
+    } else {
+      banner.style.display = 'none';
+    }
+  }
+}
+
+// ── File handling
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('drag-over'); if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]); });
+fileInput.addEventListener('change', () => { if (fileInput.files[0]) handleFile(fileInput.files[0]); });
+
+function handleFile(file) {
+  uploadedFileName = file.name;
+  document.getElementById('chipName').textContent = file.name;
+  document.getElementById('fileChip').style.display = 'flex';
+  const reader = new FileReader();
+  reader.onload = e => { uploadedFileContent = e.target.result; };
+  reader.readAsText(file);
+}
+
+function clearFile() {
+  uploadedFileContent = null; uploadedFileName = null;
+  document.getElementById('fileChip').style.display = 'none';
+  fileInput.value = '';
+}
+
+// ── Analyze
+async function analyzeContract() {
+  const text = document.getElementById('contractText').value.trim();
+  const hasFile = uploadedFileContent && uploadedFileName;
+  if (!text && !hasFile) { alert('Please upload a contract file or paste contract text first.'); return; }
+
+  const analyzeBtn = document.getElementById('analyzeBtn');
+  const outputBody = document.getElementById('outputBody');
+
+  analyzeBtn.disabled = true;
+  analyzeBtn.textContent = '⏳ Analyzing…';
+  outputBody.innerHTML = `<div class="loading"><div class="spinner"></div><p>Reading and analyzing the contract…</p><span>This may take 15–30 seconds for longer documents</span></div>`;
+
+  const contractContent = hasFile ? uploadedFileContent : text;
+
+  try {
+    const res = await fetch('/api/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: currentEmail,
+        contractContent,
+        contractType: document.getElementById('contractType').value,
+        outputDetail: document.getElementById('outputDetail').value,
+        perspective: document.getElementById('perspective').value,
+      }),
+    });
+
+    const data = await res.json();
+
+    if (res.status === 402 && data.error === 'free_limit_reached') {
+      renderUpgradeWall();
+      updateUsageUI({ count: data.limit, limit: data.limit, subscribed: false });
+      return;
+    }
+    if (!res.ok) throw new Error(data.error || 'Analysis failed');
+
+    updateUsageUI(data.usage);
+    renderSummary(data.result, data.usage);
+  } catch (err) {
+    outputBody.innerHTML = `<div class="error-box">⚠️ <strong>Analysis failed.</strong> ${esc(err.message)}</div>`;
+  } finally {
+    analyzeBtn.disabled = false;
+    analyzeBtn.innerHTML = '🔍 &nbsp;Analyze Contract';
+    loadStatus();
+  }
+}
+
+// ── Upgrade
+async function goUpgrade() {
+  try {
+    const res = await fetch('/api/create-checkout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: currentEmail }),
+    });
+    const data = await res.json();
+    if (data.url) window.location.href = data.url;
+    else alert('Could not open checkout. Please try again.');
+  } catch (e) { alert('Error connecting to payment system.'); }
+}
+
+function renderUpgradeWall() {
+  document.getElementById('outputBody').innerHTML = `
+    <div class="upgrade-wall">
+      <div class="uw-icon">🔒</div>
+      <h2>You've used your 3 free analyses</h2>
+      <p>Upgrade to analyze unlimited contracts — ideal for business owners, HR teams, freelancers, and anyone who signs contracts regularly.</p>
+      <div class="price-card">
+        <div class="price">$19<span style="font-size:16px;font-weight:400">/mo</span></div>
+        <div class="price-sub">Billed monthly · Cancel anytime</div>
+        <ul class="price-features">
+          <li>Unlimited contract analyses</li>
+          <li>All contract types supported</li>
+          <li>Red flags & risk scoring</li>
+          <li>PDF & text upload</li>
+        </ul>
+      </div>
+      <br>
+      <button class="btn btn-stripe" onclick="goUpgrade()">💳 &nbsp;Subscribe with Stripe</button>
+    </div>`;
+}
+
+function renderSummary(r, usage) {
+  const balancePct = Math.min(100, Math.max(0, r.balance?.score ?? 50));
+  const parties = r.parties || [];
+  const leftLabel = parties[0]?.name || 'Party A';
+  const rightLabel = parties[1]?.name || 'Party B';
+
+  const execHtml = (r.executiveSummary||[]).map(b => `<li>${esc(b)}</li>`).join('');
+  const kvsHtml = [
+    { label: 'Document Type', val: r.contractType || r.docTitle || '—' },
+    { label: 'Date', val: r.docDate || 'Not specified' },
+    ...parties.map((p,i) => ({ label: `Party ${i+1}`, val: `${p.name} (${p.role})` }))
+  ].map(k => `<div class="kv-item"><div class="kv-label">${esc(k.label)}</div><div class="kv-val">${esc(k.val)}</div></div>`).join('');
+
+  const keyTermsHtml = (r.keyTerms||[]).map(t => `
+    <div class="obligation-row">
+      <div style="flex:1">
+        <strong style="font-size:13px;">${esc(t.term)}</strong>
+        <div style="font-size:13px;color:var(--text-muted);margin-top:2px;">${esc(t.detail)}</div>
+      </div>
+    </div>`).join('');
+
+  const obligationsHtml = (r.obligations||[]).map((ob,i) => {
+    const isBoth = /both|all/i.test(ob.party);
+    const cls = isBoth ? 'ob-party-both' : (i%2===0 ? 'ob-party-a' : 'ob-party-b');
+    return `<div class="obligation-row"><span class="ob-party ${cls}">${esc(ob.party.substring(0,14))}</span><span>${esc(ob.obligation)}</span></div>`;
+  }).join('');
+
+  const redFlagsHtml = (r.redFlags||[]).map(rf => `
+    <div class="risk-card risk-${rf.severity||'medium'}">
+      <div class="risk-title">${esc(rf.title)}</div>
+      <div class="risk-body">${esc(rf.detail)}</div>
+    </div>`).join('');
+
+  const missingHtml = (r.missing||[]).map(m =>
+    `<div class="missing-item"><div class="missing-dot"></div><div>${esc(m)}</div></div>`).join('');
+
+  const clarifHtml = (r.clarifications||[]).map((c,i) =>
+    `<div class="clarif-item"><div class="clarif-num">${i+1}</div><div>${esc(c)}</div></div>`).join('');
+
+  const remainingText = usage.subscribed
+    ? '✓ Subscribed'
+    : `${Math.max(0, usage.limit - usage.count)} free ${Math.max(0,usage.limit-usage.count)===1?'analysis':'analyses'} remaining`;
+
+  document.getElementById('outputBody').innerHTML = `
+    <div class="summary-wrap">
+      <div class="doc-badge">📄 &nbsp;${esc(r.docTitle||r.contractType||'Contract')}${r.docDate?' &nbsp;·&nbsp; '+esc(r.docDate):''} &nbsp;·&nbsp; ${remainingText}</div>
+
+      ${execHtml?`<div class="exec-summary"><h3>Executive Summary</h3><ul>${execHtml}</ul></div>`:''}
+
+      <div class="section">
+        <div class="section-title"><span class="s-icon" style="background:var(--info-light);color:var(--info)">👥</span>Parties &amp; Purpose</div>
+        <div class="kv-grid">${kvsHtml}</div>
+        <p style="margin-top:12px;font-size:13.5px;color:var(--text-muted);">${esc(r.purpose||'')}</p>
+      </div>
+
+      ${keyTermsHtml?`<div class="section"><div class="section-title"><span class="s-icon" style="background:var(--accent-light);color:var(--accent)">📋</span>Key Terms</div>${keyTermsHtml}</div>`:''}
+
+      ${obligationsHtml?`<div class="section"><div class="section-title"><span class="s-icon" style="background:var(--warning-light);color:var(--warning)">✅</span>Obligations</div>${obligationsHtml}</div>`:''}
+
+      ${redFlagsHtml?`<div class="section"><div class="section-title"><span class="s-icon" style="background:var(--accent2-light);color:var(--accent2)">⚠️</span>Red Flags &amp; Risks</div>${redFlagsHtml}</div>`:''}
+
+      ${missingHtml?`<div class="section"><div class="section-title"><span class="s-icon" style="background:var(--surface2);color:var(--text-muted)">🔍</span>Missing Provisions</div>${missingHtml}</div>`:''}
+
+      <div class="section">
+        <div class="section-title"><span class="s-icon" style="background:var(--info-light);color:var(--info)">⚖️</span>Tone &amp; Balance</div>
+        <div class="balance-labels"><span>Favors ${esc(leftLabel)}</span><span>Balanced</span><span>Favors ${esc(rightLabel)}</span></div>
+        <div class="balance-bar"><div class="balance-fill" style="width:${balancePct}%"></div></div>
+        <p style="font-size:13px;color:var(--text-muted);margin-top:6px;"><strong style="color:var(--text)">${esc(r.balance?.label||'')}</strong> — ${esc(r.balance?.explanation||r.overallTone||'')}</p>
+      </div>
+
+      ${clarifHtml?`<div class="section"><div class="section-title"><span class="s-icon" style="background:var(--accent-light);color:var(--accent)">💬</span>Suggested Clarifications</div>${clarifHtml}</div>`:''}
+
+      <div class="disclaimer"><strong>Disclaimer:</strong> This summary is for informational purposes only and is not legal advice. Always consult a qualified attorney before acting on any contract.</div>
+      <button class="copy-btn" onclick="copyText()">📋 Copy Summary</button>
+    </div>`;
+}
+
+function copyText() {
+  navigator.clipboard.writeText(document.getElementById('outputBody').innerText).then(() => {
+    const btn = document.querySelector('.copy-btn');
+    btn.textContent = '✅ Copied!';
+    setTimeout(() => btn.textContent = '📋 Copy Summary', 2000);
+  });
+}
+
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Auto-login if returning user
+window.addEventListener('load', () => {
+  const saved = localStorage.getItem('cs_email');
+  if (saved) {
+    currentEmail = saved;
+    document.getElementById('gateEmail') && (document.getElementById('gateEmail').value = saved);
+    showApp();
+  }
+
+  // Check for successful Stripe redirect
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('session_id') && params.get('email')) {
+    currentEmail = decodeURIComponent(params.get('email'));
+    localStorage.setItem('cs_email', currentEmail);
+    window.history.replaceState({}, '', '/');
+    showApp();
+    setTimeout(() => alert('🎉 Welcome! Your subscription is active. Enjoy unlimited analyses!'), 500);
+  }
+});
+</script>
+</body>
+</html>
