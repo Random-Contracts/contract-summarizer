@@ -372,18 +372,40 @@ dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-ove
 dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('drag-over'); if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]); });
 fileInput.addEventListener('change', () => { if (fileInput.files[0]) handleFile(fileInput.files[0]); });
 
-function handleFile(file) {
+async function handleFile(file) {
   uploadedFileName = file.name;
-  document.getElementById('chipName').textContent = file.name;
+  document.getElementById('chipName').textContent = file.name + ' (reading...)';
   document.getElementById('fileChip').style.display = 'flex';
-  const reader = new FileReader();
-  reader.onload = e => { uploadedFileContent = e.target.result; };
-  reader.readAsText(file);
+
+  try {
+    // Send file to server for proper text extraction (handles .docx correctly)
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const res = await fetch('/api/upload', { method: 'POST', body: formData });
+    const data = await res.json();
+
+    if (!res.ok || data.error) {
+      alert('Could not read file: ' + (data.error || 'Unknown error') + '\n\nPlease paste the contract text manually instead.');
+      clearFile();
+      return;
+    }
+
+    uploadedFileContent = data.text;
+    document.getElementById('chipName').textContent = file.name;
+    document.getElementById('contractText').value = '';
+    document.getElementById('contractText').placeholder = 'File loaded — click Analyze Contract to proceed.';
+
+  } catch (err) {
+    alert('File reading failed. Please paste the contract text manually.');
+    clearFile();
+  }
 }
 
 function clearFile() {
   uploadedFileContent = null; uploadedFileName = null;
   document.getElementById('fileChip').style.display = 'none';
+  document.getElementById('contractText').placeholder = 'Paste the full contract text here…';
   fileInput.value = '';
 }
 
