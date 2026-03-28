@@ -4,6 +4,7 @@ const path = require('path');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const multer = require('multer');
 const mammoth = require('mammoth');
+const pdfParse = require('pdf-parse');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -133,7 +134,7 @@ ${contractTypeHint}`;
   }
 });
 
-// ── POST /api/upload — extract text from Word/text files
+// ── POST /api/upload — extract text from Word/PDF/text files
 app.post('/api/upload', upload.single('file'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded.' });
 
@@ -143,9 +144,33 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
     let text = '';
 
     if (filename.endsWith('.docx') || filename.endsWith('.doc')) {
+      // Word documents — use mammoth
       const result = await mammoth.extractRawText({ buffer: req.file.buffer });
       text = result.value;
+
+    } else if (filename.endsWith('.pdf')) {
+      // PDF documents — use pdf-parse
+      try {
+        const pdfData = await pdfParse(req.file.buffer);
+        text = pdfData.text;
+
+        // Check if this looks like a scanned PDF (very little text extracted)
+        const wordCount = text.trim().split(/\s+/).length;
+        if (wordCount < 50) {
+          return res.status(400).json({
+            error: 'scanned_pdf',
+            message: 'This appears to be a scanned PDF document. Scanned PDFs cannot be read automatically. Please copy and paste the text manually instead.'
+          });
+        }
+      } catch (pdfErr) {
+        return res.status(400).json({
+          error: 'scanned_pdf',
+          message: 'Could not extract text from this PDF. It may be a scanned document. Please copy and paste the text manually instead.'
+        });
+      }
+
     } else {
+      // Plain text files
       text = req.file.buffer.toString('utf-8');
     }
 
