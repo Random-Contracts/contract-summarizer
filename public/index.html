@@ -359,7 +359,7 @@ textarea.form-textarea{min-height:100px;resize:vertical}
           </div>
           <div class="plan-annual-note" id="starterNote"></div>
           <ul class="plan-features">
-            <li>40 analyses per month</li>
+            <li>30 analyses per month</li>
             <li>Documents up to 20 pages (1 credit)</li>
             <li>20–50 page docs use 2 credits</li>
             <li>50+ page docs use 3 credits</li>
@@ -373,24 +373,24 @@ textarea.form-textarea{min-height:100px;resize:vertical}
           </div>
         </div>
 
-        <!-- Professional -->
+        <!-- Pro -->
         <div class="plan-card featured">
           <div class="plan-badge">Most Popular</div>
-          <div class="plan-name">Professional</div>
+          <div class="plan-name">Pro</div>
           <div class="plan-desc">For active users and small business owners</div>
           <div class="plan-price">
-            <span class="amount" id="proPrice">$34</span>
+            <span class="amount" id="proPrice">$49</span>
             <span class="period">/month</span>
           </div>
           <div class="plan-annual-note" id="proNote"></div>
           <ul class="plan-features">
-            <li>50 analyses per month</li>
+            <li>100 analyses per month</li>
+            <li>2 user seats included</li>
             <li>Documents up to 20 pages (1 credit)</li>
             <li>20–50 page docs use 2 credits</li>
             <li>50+ page docs use 3 credits</li>
             <li>Word & PDF upload</li>
             <li>$1.00 per overage credit</li>
-            <li class="dim">Multiple seats</li>
           </ul>
           <button class="btn btn-primary btn-full" onclick="subscribe('professional_monthly')" id="proSubBtn">Subscribe Monthly</button>
         </div>
@@ -400,7 +400,7 @@ textarea.form-textarea{min-height:100px;resize:vertical}
           <div class="plan-name">Team</div>
           <div class="plan-desc">For small teams and growing businesses</div>
           <div class="plan-price">
-            <span class="amount" id="teamPrice">$69</span>
+            <span class="amount" id="teamPrice">$89</span>
             <span class="period">/month</span>
           </div>
           <div class="plan-annual-note" id="teamNote"></div>
@@ -598,8 +598,8 @@ function updatePricingDisplay(annual) {
   isAnnual = annual;
   const prices = {
     starter: annual ? { amount: '$16.15', note: 'Billed $193.80/year — save $34.20' } : { amount: '$19', note: '' },
-    pro: annual ? { amount: '$28.90', note: 'Billed $346.80/year — save $61.20' } : { amount: '$34', note: '' },
-    team: annual ? { amount: '$58.71', note: 'Billed $704.52/year — save $123.48' } : { amount: '$69', note: '' },
+    pro: annual ? { amount: '$41.65', note: 'Billed $499.80/year — save $88.20' } : { amount: '$49', note: '' },
+    team: annual ? { amount: '$75.79', note: 'Billed $909.48/year — save $178.52' } : { amount: '$89', note: '' },
   };
   document.getElementById('starterPrice').textContent = prices.starter.amount;
   document.getElementById('starterNote').textContent = prices.starter.note;
