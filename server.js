@@ -17,14 +17,14 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // ── Plan definitions
 const PLANS = {
-  free:                  { name: 'Free',                  monthlyAnalyses: 3,   seats: 1, price: 0 },
-  starter_trial:         { name: 'Starter Trial',         monthlyAnalyses: 40,  seats: 1, trialDays: 10, price: 0 },
-  starter_monthly:       { name: 'Starter',               monthlyAnalyses: 40,  seats: 1, price: 1900,  interval: 'month', stripePriceId: process.env.STRIPE_STARTER_MONTHLY_ID },
-  starter_annual:        { name: 'Starter Annual',        monthlyAnalyses: 40,  seats: 1, price: 19380, interval: 'year',  stripePriceId: process.env.STRIPE_STARTER_ANNUAL_ID },
-  professional_monthly:  { name: 'Professional',          monthlyAnalyses: 50,  seats: 1, price: 3400,  interval: 'month', stripePriceId: process.env.STRIPE_PRO_MONTHLY_ID },
-  professional_annual:   { name: 'Professional Annual',   monthlyAnalyses: 50,  seats: 1, price: 34680, interval: 'year',  stripePriceId: process.env.STRIPE_PRO_ANNUAL_ID },
-  team_monthly:          { name: 'Team',                  monthlyAnalyses: 250, seats: 4, price: 6900,  interval: 'month', stripePriceId: process.env.STRIPE_TEAM_MONTHLY_ID },
-  team_annual:           { name: 'Team Annual',           monthlyAnalyses: 250, seats: 4, price: 70452, interval: 'year',  stripePriceId: process.env.STRIPE_TEAM_ANNUAL_ID },
+  free:                  { name: 'Free',           monthlyAnalyses: 3,   seats: 1, price: 0 },
+  starter_trial:         { name: 'Starter Trial',  monthlyAnalyses: 30,  seats: 1, trialDays: 10, price: 0 },
+  starter_monthly:       { name: 'Starter',        monthlyAnalyses: 30,  seats: 1, price: 1900,  interval: 'month', stripePriceId: process.env.STRIPE_STARTER_MONTHLY_ID },
+  starter_annual:        { name: 'Starter Annual', monthlyAnalyses: 30,  seats: 1, price: 19380, interval: 'year',  stripePriceId: process.env.STRIPE_STARTER_ANNUAL_ID },
+  professional_monthly:  { name: 'Pro',            monthlyAnalyses: 100, seats: 2, price: 4900,  interval: 'month', stripePriceId: process.env.STRIPE_PRO_MONTHLY_ID },
+  professional_annual:   { name: 'Pro Annual',     monthlyAnalyses: 100, seats: 2, price: 49980, interval: 'year',  stripePriceId: process.env.STRIPE_PRO_ANNUAL_ID },
+  team_monthly:          { name: 'Team',           monthlyAnalyses: 250, seats: 4, price: 8900,  interval: 'month', stripePriceId: process.env.STRIPE_TEAM_MONTHLY_ID },
+  team_annual:           { name: 'Team Annual',    monthlyAnalyses: 250, seats: 4, price: 90948, interval: 'year',  stripePriceId: process.env.STRIPE_TEAM_ANNUAL_ID },
 };
 
 // ── In-memory stores
