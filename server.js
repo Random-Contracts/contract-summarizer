@@ -6,28 +6,49 @@ const multer = require('multer');
 const mammoth = require('mammoth');
 const pdfParse = require('pdf-parse');
 const nodemailer = require('nodemailer');
+const { createClient } = require('@supabase/supabase-js');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const upload = multer({ storage: multer.memoryStorage() });
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
+// ── Supabase client (optional — gracefully disabled if not configured)
+let supabase = null;
+if (process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY) {
+  supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
+  console.log('Supabase connected');
+} else {
+  console.log('Supabase not configured — history disabled');
+}
+
 // ── Plan definitions
 const PLANS = {
-  free:                  { name: 'Free',           monthlyAnalyses: 3,   seats: 1, price: 0 },
-  starter_trial:         { name: 'Starter Trial',  monthlyAnalyses: 30,  seats: 1, trialDays: 10, price: 0 },
-  starter_monthly:       { name: 'Starter',        monthlyAnalyses: 30,  seats: 1, price: 1900,  interval: 'month', stripePriceId: process.env.STRIPE_STARTER_MONTHLY_ID },
-  starter_annual:        { name: 'Starter Annual', monthlyAnalyses: 30,  seats: 1, price: 19380, interval: 'year',  stripePriceId: process.env.STRIPE_STARTER_ANNUAL_ID },
-  professional_monthly:  { name: 'Pro',            monthlyAnalyses: 100, seats: 2, price: 4900,  interval: 'month', stripePriceId: process.env.STRIPE_PRO_MONTHLY_ID },
-  professional_annual:   { name: 'Pro Annual',     monthlyAnalyses: 100, seats: 2, price: 49980, interval: 'year',  stripePriceId: process.env.STRIPE_PRO_ANNUAL_ID },
-  team_monthly:          { name: 'Team',           monthlyAnalyses: 250, seats: 4, price: 8900,  interval: 'month', stripePriceId: process.env.STRIPE_TEAM_MONTHLY_ID },
-  team_annual:           { name: 'Team Annual',    monthlyAnalyses: 250, seats: 4, price: 90948, interval: 'year',  stripePriceId: process.env.STRIPE_TEAM_ANNUAL_ID },
+  free:                 { name: 'Free',           monthlyAnalyses: 3,   seats: 1, price: 0 },
+  starter_trial:        { name: 'Starter Trial',  monthlyAnalyses: 30,  seats: 1, trialDays: 7, price: 0 },
+  starter_monthly:      { name: 'Starter',        monthlyAnalyses: 30,  seats: 1, price: 2500,   interval: 'month', stripePriceId: process.env.STRIPE_STARTER_MONTHLY_ID },
+  starter_annual:       { name: 'Starter Annual', monthlyAnalyses: 30,  seats: 1, price: 25500,  interval: 'year',  stripePriceId: process.env.STRIPE_STARTER_ANNUAL_ID },
+  professional_monthly: { name: 'Pro',            monthlyAnalyses: 100, seats: 2, price: 5900,   interval: 'month', stripePriceId: process.env.STRIPE_PRO_MONTHLY_ID },
+  professional_annual:  { name: 'Pro Annual',     monthlyAnalyses: 100, seats: 2, price: 60228,  interval: 'year',  stripePriceId: process.env.STRIPE_PRO_ANNUAL_ID },
+  team_monthly:         { name: 'Team',           monthlyAnalyses: 250, seats: 4, price: 11900,  interval: 'month', stripePriceId: process.env.STRIPE_TEAM_MONTHLY_ID },
+  team_annual:          { name: 'Team Annual',    monthlyAnalyses: 250, seats: 4, price: 121308, interval: 'year',  stripePriceId: process.env.STRIPE_TEAM_ANNUAL_ID },
 };
 
-// ── In-memory stores
+// ── Page limits and credit costs
+const PAGE_LIMIT = 150;
+function getDocumentCreditCost(pageCount) {
+  if (!pageCount || pageCount <= 25) return 1;
+  if (pageCount <= 70) return 2;
+  return 3;
+}
+function estimatePageCount(text) {
+  return Math.ceil(text.length / 1500);
+}
+
+// ── In-memory stores (fallback when Supabase not configured)
 const userStore = {};
 const trialStore = {};
 const ipTrialStore = {};
@@ -35,47 +56,26 @@ const ipTrialStore = {};
 function getUser(email) {
   if (!userStore[email]) {
     userStore[email] = {
-      email,
-      plan: 'free',
-      creditsUsed: 0,
-      creditsLimit: 3,
-      seats: 1,
-      subscribed: false,
-      customerId: null,
-      trialStarted: null,
-      trialExpiry: null,
+      email, plan: 'free', creditsUsed: 0, creditsLimit: 3,
+      seats: 1, subscribed: false, customerId: null,
+      trialStarted: null, trialExpiry: null,
       billingCycleStart: new Date(),
     };
   }
   return userStore[email];
 }
 
-function getDocumentCreditCost(pageCount) {
-  if (!pageCount || pageCount <= 20) return 1;
-  if (pageCount <= 50) return 2;
-  return 3;
-}
-
-function estimatePageCount(text) {
-  return Math.ceil(text.length / 1500);
-}
-
 function checkBillingReset(user) {
   const now = new Date();
-  const cycleStart = new Date(user.billingCycleStart);
-  const daysSinceCycle = (now - cycleStart) / (1000 * 60 * 60 * 24);
+  const daysSince = (now - new Date(user.billingCycleStart)) / (1000 * 60 * 60 * 24);
   const resetDays = user.plan.includes('annual') ? 365 : 30;
-  if (daysSinceCycle >= resetDays) {
-    user.creditsUsed = 0;
-    user.billingCycleStart = now;
-  }
+  if (daysSince >= resetDays) { user.creditsUsed = 0; user.billingCycleStart = now; }
 }
 
 function checkTrialExpiry(user) {
   if (user.plan === 'starter_trial' && user.trialExpiry) {
     if (new Date() > new Date(user.trialExpiry)) {
-      user.plan = 'free';
-      user.creditsLimit = 3;
+      user.plan = 'free'; user.creditsLimit = 3;
       user.creditsUsed = Math.min(user.creditsUsed, 3);
     }
   }
@@ -87,33 +87,25 @@ function getClientIp(req) {
 }
 
 // ── POST /api/start-trial
-app.post('/api/start-trial', (req, res) => {
+app.post('/api/start-trial', async (req, res) => {
   const { email } = req.body;
   if (!email) return res.status(400).json({ error: 'Email required.' });
-
   const ip = getClientIp(req);
+  const user = getUser(email);
 
   if (trialStore[email]) {
-    return res.status(400).json({
-      error: 'trial_used',
-      message: 'A free trial has already been used for this email address.',
-    });
+    return res.status(400).json({ error: 'trial_used', message: 'A free trial has already been used for this email address.' });
   }
-
   const ipCount = ipTrialStore[ip] || 0;
   if (ipCount >= 2) {
-    return res.status(400).json({
-      error: 'trial_limit',
-      message: 'The maximum number of free trials from this location has been reached. Please subscribe to continue.',
-    });
+    return res.status(400).json({ error: 'trial_limit', message: 'The maximum number of free trials from this location has been reached. Please subscribe to continue.' });
   }
 
-  const user = getUser(email);
   const trialExpiry = new Date();
-  trialExpiry.setDate(trialExpiry.getDate() + 10);
+  trialExpiry.setDate(trialExpiry.getDate() + 7);
 
   user.plan = 'starter_trial';
-  user.creditsLimit = 40;
+  user.creditsLimit = 30;
   user.creditsUsed = 0;
   user.trialStarted = new Date();
   user.trialExpiry = trialExpiry;
@@ -121,26 +113,30 @@ app.post('/api/start-trial', (req, res) => {
   trialStore[email] = { started: new Date(), ip };
   ipTrialStore[ip] = ipCount + 1;
 
-  res.json({
-    message: 'Trial started successfully',
-    trialExpiry: trialExpiry.toISOString(),
-    daysRemaining: 10,
-  });
+  res.json({ message: 'Trial started', trialExpiry: trialExpiry.toISOString(), daysRemaining: 7 });
 });
 
 // ── POST /api/analyze
 app.post('/api/analyze', async (req, res) => {
   const { email, contractContent, contractType, outputDetail, perspective, estimatedPages } = req.body;
-
-  if (!email || !contractContent) {
-    return res.status(400).json({ error: 'Email and contract content are required.' });
-  }
+  if (!email || !contractContent) return res.status(400).json({ error: 'Email and contract content are required.' });
 
   const user = getUser(email);
   checkBillingReset(user);
   checkTrialExpiry(user);
 
   const pageCount = estimatedPages || estimatePageCount(contractContent);
+
+  // Page limit check
+  if (pageCount > PAGE_LIMIT) {
+    return res.status(400).json({
+      error: 'page_limit_exceeded',
+      message: `This document appears to be approximately ${pageCount} pages, which exceeds our ${PAGE_LIMIT}-page limit. For lengthy agreements we recommend uploading the core contract sections separately. Please paste the relevant sections into the text box instead.`,
+      pageCount,
+      limit: PAGE_LIMIT,
+    });
+  }
+
   const creditCost = getDocumentCreditCost(pageCount);
   const creditsRemaining = user.creditsLimit - user.creditsUsed;
 
@@ -152,64 +148,69 @@ app.post('/api/analyze', async (req, res) => {
         : user.plan === 'starter_trial'
         ? 'You have used all your trial analyses. Please subscribe to continue.'
         : 'You have used all your analyses for this billing period. Please upgrade or wait for your next billing cycle.',
-      creditsUsed: user.creditsUsed,
-      creditsLimit: user.creditsLimit,
-      plan: user.plan,
+      creditsUsed: user.creditsUsed, creditsLimit: user.creditsLimit, plan: user.plan,
     });
   }
 
   if (creditsRemaining < creditCost) {
     return res.status(402).json({
       error: 'insufficient_credits',
-      message: `This document requires ${creditCost} analysis credits (estimated ${pageCount} pages) but you only have ${creditsRemaining} credit${creditsRemaining === 1 ? '' : 's'} remaining. Please upgrade your plan.`,
-      creditsRemaining,
-      creditCost,
-      pageCount,
+      message: `This document requires ${creditCost} credits (estimated ${pageCount} pages) but you only have ${creditsRemaining} credit${creditsRemaining === 1 ? '' : 's'} remaining.`,
+      creditsRemaining, creditCost, pageCount,
     });
   }
 
   const detailInstruction = {
     executive: 'Provide a concise executive-level summary. Focus on the 5-8 most important points. Be brief.',
     standard: 'Provide a thorough standard summary with all requested sections.',
-    detailed: 'Provide a highly detailed summary. Quote key clauses where the exact wording is material. Be comprehensive.',
+    detailed: 'Provide a highly detailed summary. Quote key clauses where exact wording is material.',
   }[outputDetail] || 'Provide a thorough standard summary with all requested sections.';
 
   const perspectiveInstruction = {
-    neutral: 'Analyze from a neutral perspective, noting risks and obligations for both parties.',
-    party1: 'Flag risks and unfavorable terms especially from the perspective of the FIRST party named.',
-    party2: 'Flag risks and unfavorable terms especially from the perspective of the SECOND party named.',
+    neutral: 'Analyze from a neutral perspective, noting risks for both parties.',
+    party1: 'Flag risks especially from the perspective of the FIRST party named.',
+    party2: 'Flag risks especially from the perspective of the SECOND party named.',
   }[perspective] || 'Analyze from a neutral perspective.';
 
   const contractTypeHint = contractType !== 'auto'
     ? `The user identifies this as a: ${contractType}.`
-    : 'Read the contract carefully and identify the actual contract type from its content. Do NOT assume.';
+    : 'Identify the actual contract type from its content. Do NOT assume.';
 
   const systemPrompt = `You are Contract Summarizer Agent, an expert legal summarization assistant.
 
 CRITICAL INSTRUCTIONS:
-1. You must ONLY analyze the actual contract text provided.
-2. Do NOT make up or assume any details not present in the contract.
-3. Read every word carefully - identify the REAL parties, REAL dates, REAL terms.
-4. Base your entire analysis on what is ACTUALLY written in the contract.
+1. Analyze ONLY the actual contract text provided. Do NOT invent or assume any details.
+2. Identify the REAL parties, REAL dates, REAL terms from the document.
+3. Identify the governing law state and apply relevant state law principles in your analysis.
+4. For commercial contracts, apply applicable UCC articles where relevant.
+5. For each red flag, explain the practical real-world consequence in plain English.
+6. Avoid redundancy — do not repeat the same issue in both red flags AND missing provisions.
+7. The plain summary must be 2-3 sentences maximum suitable for someone with no legal background.
+8. For each red flag, generate specific suggested alternative contract language the user could propose.
+9. For key terms, note whether each appears within, above, or below standard market practice.
 
 Respond ONLY with valid JSON. No markdown, no backticks, no preamble.
 
 JSON structure:
 {
-  "docTitle": "string",
-  "docDate": "string or null",
+  "docTitle": "string - actual title from document",
+  "docDate": "string or null - actual date",
+  "governingLaw": "string - state/jurisdiction governing this contract",
   "parties": [{"name": "string", "role": "string"}],
   "purpose": "string",
   "contractType": "string",
-  "executiveSummary": ["string"],
-  "keyTerms": [{"term": "string", "detail": "string"}],
+  "plainSummary": "string - 2-3 sentence plain English overview for non-lawyers",
+  "executiveSummary": ["string - specific facts from THIS contract only"],
+  "keyTerms": [{"term": "string", "detail": "string", "marketContext": "string - within/above/below standard market practice and why"}],
   "obligations": [{"party": "string", "obligation": "string"}],
-  "redFlags": [{"title": "string", "detail": "string", "severity": "high|medium|low"}],
-  "missing": ["string"],
+  "redFlags": [{"title": "string", "detail": "string", "consequence": "string - plain English practical impact", "severity": "high|medium|low", "suggestedLanguage": "string - specific alternative clause language to propose"}],
+  "missing": ["string - provisions entirely absent, not already covered in redFlags"],
   "balance": {"score": 0-100, "label": "string", "explanation": "string"},
-  "clarifications": ["string"],
+  "clarifications": ["string - specific actionable items not already in redFlags or missing"],
   "overallTone": "string"
 }
+
+balance.score: 0 = heavily favors Party 1, 50 = balanced, 100 = heavily favors Party 2.
 
 ${detailInstruction}
 ${perspectiveInstruction}
@@ -243,6 +244,26 @@ ${contractTypeHint}`;
 
     user.creditsUsed += creditCost;
 
+    // Save to Supabase history if configured
+    if (supabase) {
+      try {
+        await supabase.from('analyses').insert({
+          email,
+          doc_title: result.docTitle || result.contractType || 'Untitled',
+          doc_date: result.docDate || null,
+          contract_type: result.contractType || null,
+          governing_law: result.governingLaw || null,
+          parties: JSON.stringify(result.parties || []),
+          page_count: pageCount,
+          credit_cost: creditCost,
+          result: JSON.stringify(result),
+          created_at: new Date().toISOString(),
+        });
+      } catch (dbErr) {
+        console.error('History save failed:', dbErr.message);
+      }
+    }
+
     const trialDaysRemaining = user.trialExpiry
       ? Math.max(0, Math.ceil((new Date(user.trialExpiry) - new Date()) / (1000 * 60 * 60 * 24)))
       : null;
@@ -253,16 +274,70 @@ ${contractTypeHint}`;
         creditsUsed: user.creditsUsed,
         creditsLimit: user.creditsLimit,
         creditsRemaining: user.creditsLimit - user.creditsUsed,
-        creditCost,
-        pageCount,
-        plan: user.plan,
-        subscribed: user.subscribed,
-        trialDaysRemaining,
+        creditCost, pageCount, plan: user.plan,
+        subscribed: user.subscribed, trialDaysRemaining,
       },
     });
 
   } catch (err) {
     res.status(500).json({ error: 'Analysis failed', detail: err.message });
+  }
+});
+
+// ── GET /api/history
+app.get('/api/history', async (req, res) => {
+  const { email, search, type, limit = 20, offset = 0 } = req.query;
+  if (!email) return res.status(400).json({ error: 'Email required.' });
+
+  if (!supabase) {
+    return res.json({ analyses: [], total: 0, historyEnabled: false });
+  }
+
+  try {
+    let query = supabase
+      .from('analyses')
+      .select('id, doc_title, doc_date, contract_type, governing_law, parties, page_count, credit_cost, created_at', { count: 'exact' })
+      .eq('email', email)
+      .order('created_at', { ascending: false })
+      .range(Number(offset), Number(offset) + Number(limit) - 1);
+
+    if (search) {
+      query = query.or(`doc_title.ilike.%${search}%,contract_type.ilike.%${search}%,governing_law.ilike.%${search}%,parties.ilike.%${search}%`);
+    }
+    if (type && type !== 'all') {
+      query = query.ilike('contract_type', `%${type}%`);
+    }
+
+    const { data, error, count } = await query;
+    if (error) throw error;
+
+    res.json({ analyses: data || [], total: count || 0, historyEnabled: true });
+  } catch (err) {
+    res.status(500).json({ error: 'History fetch failed', detail: err.message });
+  }
+});
+
+// ── GET /api/history/:id
+app.get('/api/history/:id', async (req, res) => {
+  const { email } = req.query;
+  const { id } = req.params;
+  if (!email || !id) return res.status(400).json({ error: 'Email and ID required.' });
+
+  if (!supabase) return res.status(503).json({ error: 'History not enabled.' });
+
+  try {
+    const { data, error } = await supabase
+      .from('analyses')
+      .select('*')
+      .eq('id', id)
+      .eq('email', email)
+      .single();
+
+    if (error || !data) return res.status(404).json({ error: 'Analysis not found.' });
+
+    res.json({ analysis: { ...data, result: JSON.parse(data.result) } });
+  } catch (err) {
+    res.status(500).json({ error: 'Fetch failed', detail: err.message });
   }
 });
 
@@ -285,21 +360,35 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
         text = pdfData.text;
         estimatedPages = pdfData.numpages || estimatePageCount(text);
         if (text.trim().split(/\s+/).length < 50) {
-          return res.status(400).json({ error: 'scanned_pdf', message: 'This appears to be a scanned PDF. Please paste the text manually instead.' });
+          return res.status(400).json({ error: 'scanned_pdf', message: 'This appears to be a scanned PDF. Please copy and paste the text manually instead.' });
         }
       } catch {
-        return res.status(400).json({ error: 'scanned_pdf', message: 'Could not extract text from this PDF. Please paste the text manually instead.' });
+        return res.status(400).json({ error: 'scanned_pdf', message: 'Could not extract text from this PDF. It may be a scanned document. Please paste the text manually instead.' });
       }
+    } else if (filename.endsWith('.xlsx') || filename.endsWith('.xls')) {
+      // Excel handled client-side via SheetJS — server receives extracted text
+      text = req.file.buffer.toString('utf-8');
+      estimatedPages = estimatePageCount(text);
     } else {
       text = req.file.buffer.toString('utf-8');
       estimatedPages = estimatePageCount(text);
     }
 
     if (!text || text.trim().length < 50) {
-      return res.status(400).json({ error: 'Could not extract text from file. Please paste the text manually.' });
+      return res.status(400).json({ error: 'Could not extract text. Please paste the contract text manually.' });
     }
 
-    res.json({ text: text.trim(), estimatedPages, creditCost: getDocumentCreditCost(estimatedPages) });
+    // Page limit check at upload
+    if (estimatedPages > PAGE_LIMIT) {
+      return res.status(400).json({
+        error: 'page_limit_exceeded',
+        message: `This document appears to be approximately ${estimatedPages} pages, which exceeds our ${PAGE_LIMIT}-page limit. Please upload the relevant sections only, or paste the key contract text into the text box.`,
+        estimatedPages,
+      });
+    }
+
+    const creditCost = getDocumentCreditCost(estimatedPages);
+    res.json({ text: text.trim(), estimatedPages, creditCost });
   } catch (err) {
     res.status(500).json({ error: 'File reading failed: ' + err.message });
   }
@@ -315,11 +404,16 @@ app.post('/api/enterprise-contact', async (req, res) => {
   const inquiry = { name, email, company, phone, numberOfUsers, message, receivedAt: new Date().toISOString() };
   console.log('Enterprise inquiry:', JSON.stringify(inquiry, null, 2));
 
+  if (supabase) {
+    try {
+      await supabase.from('enterprise_inquiries').insert(inquiry);
+    } catch (e) { console.error('Inquiry save failed:', e.message); }
+  }
+
   if (process.env.CONTACT_EMAIL && process.env.SMTP_HOST) {
     try {
       const transporter = nodemailer.createTransporter({
-        host: process.env.SMTP_HOST,
-        port: process.env.SMTP_PORT || 587,
+        host: process.env.SMTP_HOST, port: process.env.SMTP_PORT || 587,
         auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
       });
       await transporter.sendMail({
@@ -336,14 +430,14 @@ app.post('/api/enterprise-contact', async (req, res) => {
 
 // ── POST /api/create-checkout
 app.post('/api/create-checkout', async (req, res) => {
-  const { email, planKey } = req.body;
+  const { email, planKey, isTrial } = req.body;
   if (!email || !planKey) return res.status(400).json({ error: 'Email and plan required.' });
 
   const plan = PLANS[planKey];
   if (!plan || !plan.stripePriceId) return res.status(400).json({ error: 'Invalid plan.' });
 
   try {
-    const session = await stripe.checkout.sessions.create({
+    const sessionConfig = {
       payment_method_types: ['card'],
       mode: 'subscription',
       customer_email: email,
@@ -352,7 +446,14 @@ app.post('/api/create-checkout', async (req, res) => {
       success_url: `${process.env.APP_URL}/success.html?session_id={CHECKOUT_SESSION_ID}&email=${encodeURIComponent(email)}&plan=${planKey}`,
       cancel_url: `${process.env.APP_URL}/#pricing`,
       metadata: { planKey, email },
-    });
+    };
+
+    // Add trial period if starting trial with card
+    if (isTrial) {
+      sessionConfig.subscription_data = { trial_period_days: 7 };
+    }
+
+    const session = await stripe.checkout.sessions.create(sessionConfig);
     res.json({ url: session.url });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -376,12 +477,10 @@ app.post('/api/webhook', express.raw({ type: 'application/json' }), (req, res) =
     if (email && planKey && PLANS[planKey]) {
       const user = getUser(email);
       const plan = PLANS[planKey];
-      user.plan = planKey;
-      user.subscribed = true;
+      user.plan = planKey; user.subscribed = true;
       user.customerId = session.customer;
       user.creditsLimit = plan.monthlyAnalyses;
-      user.creditsUsed = 0;
-      user.seats = plan.seats;
+      user.creditsUsed = 0; user.seats = plan.seats;
       user.billingCycleStart = new Date();
     }
   }
@@ -420,28 +519,21 @@ app.get('/api/status', (req, res) => {
     ? Math.max(0, Math.ceil((new Date(user.trialExpiry) - new Date()) / (1000 * 60 * 60 * 24)))
     : null;
   res.json({
-    plan: user.plan,
-    subscribed: user.subscribed,
-    creditsUsed: user.creditsUsed,
-    creditsLimit: user.creditsLimit,
+    plan: user.plan, subscribed: user.subscribed,
+    creditsUsed: user.creditsUsed, creditsLimit: user.creditsLimit,
     creditsRemaining: user.creditsLimit - user.creditsUsed,
-    seats: user.seats,
-    trialDaysRemaining,
-    hadTrial: !!trialStore[email],
+    seats: user.seats, trialDaysRemaining, hadTrial: !!trialStore[email],
   });
 });
 
-// ── GET /api/reset-test (remove before public launch)
+// ── GET /api/reset-test
 app.get('/api/reset-test', (req, res) => {
   const { email } = req.query;
   if (!email) return res.status(400).json({ error: 'Email required.' });
   if (userStore[email]) {
-    userStore[email].creditsUsed = 0;
-    userStore[email].plan = 'free';
-    userStore[email].creditsLimit = 3;
-    userStore[email].subscribed = false;
-    userStore[email].trialExpiry = null;
-    userStore[email].trialStarted = null;
+    userStore[email].creditsUsed = 0; userStore[email].plan = 'free';
+    userStore[email].creditsLimit = 3; userStore[email].subscribed = false;
+    userStore[email].trialExpiry = null; userStore[email].trialStarted = null;
   }
   delete trialStore[email];
   res.json({ message: 'Reset successful', email });
