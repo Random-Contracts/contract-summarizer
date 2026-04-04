@@ -1,9 +1,10 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Contract Summarizer — Plain English Contract Analysis</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&family=DM+Sans:wght@300;400;500;600&display=swap');
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -19,41 +20,31 @@
   --shadow:0 2px 12px rgba(0,0,0,0.07);
 }
 body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;line-height:1.6}
-
-/* ── Buttons ── */
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:11px 22px;border-radius:var(--radius-sm);font-family:'DM Sans',sans-serif;font-size:14px;font-weight:500;cursor:pointer;transition:all 0.18s;border:none}
-.btn-primary{background:var(--accent);color:#fff}
-.btn-primary:hover:not(:disabled){background:#1e3a30}
+.btn-primary{background:var(--accent);color:#fff}.btn-primary:hover:not(:disabled){background:#1e3a30}
 .btn-primary:disabled{opacity:0.55;cursor:not-allowed}
-.btn-stripe{background:#635BFF;color:#fff}
-.btn-stripe:hover{background:#4f46e5}
-.btn-outline{background:transparent;color:var(--accent);border:1.5px solid var(--accent)}
-.btn-outline:hover{background:var(--accent-light)}
+.btn-outline{background:transparent;color:var(--accent);border:1.5px solid var(--accent)}.btn-outline:hover{background:var(--accent-light)}
+.btn-stripe{background:#635BFF;color:#fff}.btn-stripe:hover{background:#4f46e5}
 .btn-full{width:100%}
-
-/* ── Gate ── */
+/* Gate */
 .gate{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
 .gate-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:40px;max-width:440px;width:100%;text-align:center}
 .gate-icon{font-size:48px;margin-bottom:16px}
 .gate-card h1{font-family:'Lora',serif;font-size:24px;font-weight:600;margin-bottom:8px}
 .gate-card p{font-size:14px;color:var(--text-muted);margin-bottom:20px}
 .gate-features{text-align:left;margin-bottom:24px;background:var(--surface2);border-radius:var(--radius-sm);padding:16px}
-.gate-features li{font-size:13px;padding:4px 0;list-style:none;display:flex;gap:8px;align-items:flex-start}
+.gate-features li{font-size:13px;padding:4px 0;list-style:none;display:flex;gap:8px}
 .gate-features li::before{content:'✓';color:var(--accent);font-weight:600;flex-shrink:0}
 input[type="email"],input[type="text"],input[type="tel"],textarea,select{width:100%;padding:11px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:'DM Sans',sans-serif;font-size:14px;color:var(--text);background:var(--surface);transition:border-color 0.2s}
 input:focus,textarea:focus,select:focus{outline:none;border-color:var(--accent)}
 .gate-divider{display:flex;align-items:center;gap:10px;margin:16px 0;color:var(--text-faint);font-size:12px}
 .gate-divider::before,.gate-divider::after{content:'';flex:1;height:1px;background:var(--border)}
-.gate-tabs{display:flex;margin-bottom:20px;border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden}
-.gate-tab{flex:1;padding:10px;font-size:13px;font-weight:500;cursor:pointer;background:var(--surface2);border:none;font-family:'DM Sans',sans-serif;transition:all 0.15s}
-.gate-tab.active{background:var(--accent);color:#fff}
-
-/* ── Header ── */
-.header{background:var(--accent);color:#fff;padding:14px 28px;display:flex;align-items:center;justify-content:space-between;gap:16px}
+/* Header */
+.header{background:var(--accent);color:#fff;padding:14px 28px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
 .header-left{display:flex;align-items:center;gap:12px}
 .header-icon{width:36px;height:36px;background:rgba(255,255,255,0.15);border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;font-size:18px}
 .header h1{font-family:'Lora',serif;font-size:19px;font-weight:600}
-.header-right{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.header-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .credit-badge{font-size:12px;background:rgba(255,255,255,0.15);border-radius:20px;padding:4px 12px;color:rgba(255,255,255,0.9)}
 .credit-badge.warning{background:rgba(220,160,60,0.35)}
 .credit-badge.danger{background:rgba(180,60,40,0.35)}
@@ -61,52 +52,47 @@ input:focus,textarea:focus,select:focus{outline:none;border-color:var(--accent)}
 .user-pill{font-size:12px;color:rgba(255,255,255,0.65)}
 .btn-nav{font-size:12px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);color:#fff;padding:5px 12px;border-radius:20px;cursor:pointer;font-family:'DM Sans',sans-serif}
 .btn-nav:hover{background:rgba(255,255,255,0.2)}
-
-/* ── Banners ── */
+/* Banners */
 .banner{padding:10px 28px;display:flex;align-items:center;justify-content:space-between;font-size:13px;gap:12px}
 .banner-upgrade{background:var(--warning-light);border-bottom:1px solid #e0c97a;color:var(--warning)}
 .banner-trial{background:var(--accent-light);border-bottom:1px solid rgba(43,74,63,0.3);color:var(--accent)}
 .btn-banner{padding:6px 16px;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;border:none;color:#fff}
-.btn-banner-warning{background:var(--warning)}
-.btn-banner-accent{background:var(--accent)}
-
-/* ── Main layout ── */
+.btn-banner-warning{background:var(--warning)}.btn-banner-accent{background:var(--accent)}
+/* Layout */
 .main{max-width:1100px;margin:0 auto;padding:24px}
 .two-col{display:grid;grid-template-columns:360px 1fr;gap:22px;align-items:start}
 .panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
 .panel-header{padding:11px 16px;border-bottom:1px solid var(--border);font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-muted)}
 .panel-body{padding:16px}
-
-/* ── Upload ── */
-.drop-zone{border:2px dashed var(--border-dark);border-radius:var(--radius-sm);padding:24px 16px;text-align:center;cursor:pointer;transition:all 0.2s;background:var(--surface2)}
+/* Upload */
+.drop-zone{border:2px dashed var(--border-dark);border-radius:var(--radius-sm);padding:20px 16px;text-align:center;cursor:pointer;transition:all 0.2s;background:var(--surface2)}
 .drop-zone:hover,.drop-zone.drag-over{border-color:var(--accent);background:var(--accent-light)}
 .drop-zone .dz-icon{font-size:28px;margin-bottom:6px}
-.drop-zone p{font-size:13px;color:var(--text-muted)}
-.drop-zone span{font-size:11px;color:var(--text-faint);display:block;margin-top:3px}
+.drop-zone p{font-size:13px;color:var(--text-muted);font-weight:500}
+.drop-zone .dz-formats{font-size:11px;color:var(--text-faint);margin-top:3px}
+.drop-zone .dz-note{font-size:11px;color:var(--accent2);margin-top:6px;padding:5px 8px;background:var(--accent2-light);border-radius:4px;display:inline-block}
 #fileInput{display:none}
 .file-chip{display:flex;align-items:center;gap:10px;background:var(--accent-light);border:1px solid var(--accent);border-radius:var(--radius-sm);padding:9px 12px;margin-top:8px;font-size:13px;color:var(--accent)}
 .file-chip .chip-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
 .chip-credit{font-size:11px;background:var(--accent);color:#fff;padding:2px 8px;border-radius:10px;flex-shrink:0}
-.chip-remove{cursor:pointer;opacity:0.6;font-size:16px}
-.chip-remove:hover{opacity:1}
-textarea.contract-text{min-height:130px;resize:vertical;margin-top:8px;font-size:13px;line-height:1.6}
+.chip-remove{cursor:pointer;opacity:0.6;font-size:16px}.chip-remove:hover{opacity:1}
+textarea.contract-text{min-height:120px;resize:vertical;margin-top:8px;font-size:13px;line-height:1.6}
 textarea.contract-text::placeholder{color:var(--text-faint)}
 .divider{display:flex;align-items:center;gap:10px;margin:10px 0;color:var(--text-faint);font-size:12px}
 .divider::before,.divider::after{content:'';flex:1;height:1px;background:var(--border)}
 .opt-row{display:flex;align-items:center;justify-content:space-between;padding:7px 0}
-.opt-label{font-size:13px}
-.opt-sub{font-size:11px;color:var(--text-faint)}
+.opt-label{font-size:13px}.opt-sub{font-size:11px;color:var(--text-faint)}
 select.opt-select{font-family:'DM Sans',sans-serif;font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--text);cursor:pointer}
-
-/* ── Output ── */
+/* Output */
 .output-empty{padding:56px 24px;text-align:center;color:var(--text-faint)}
 .output-empty .big-icon{font-size:44px;margin-bottom:14px;opacity:0.5}
 .loading{padding:48px 24px;text-align:center}
 .spinner{width:34px;height:34px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 14px}
 @keyframes spin{to{transform:rotate(360deg)}}
-.summary-wrap{padding:22px}
-.doc-badge{display:inline-flex;align-items:center;gap:8px;background:var(--accent-light);border:1px solid rgba(43,74,63,0.25);border-radius:20px;padding:4px 12px;font-size:12px;color:var(--accent);font-weight:500;margin-bottom:18px}
-.exec-summary{background:var(--accent-light);border-left:4px solid var(--accent);border-radius:0 var(--radius-sm) var(--radius-sm) 0;padding:14px 16px;margin-bottom:20px}
+.summary-wrap{padding:20px}
+.doc-badge{display:inline-flex;align-items:center;gap:8px;background:var(--accent-light);border:1px solid rgba(43,74,63,0.25);border-radius:20px;padding:4px 12px;font-size:12px;color:var(--accent);font-weight:500;margin-bottom:14px}
+.plain-summary{background:var(--info-light);border-left:4px solid var(--info);border-radius:0 var(--radius-sm) var(--radius-sm) 0;padding:12px 16px;margin-bottom:16px;font-size:14px;color:var(--info);line-height:1.65}
+.exec-summary{background:var(--accent-light);border-left:4px solid var(--accent);border-radius:0 var(--radius-sm) var(--radius-sm) 0;padding:14px 16px;margin-bottom:18px}
 .exec-summary h3{font-family:'Lora',serif;font-size:15px;color:var(--accent);margin-bottom:8px}
 .exec-summary ul{list-style:none}
 .exec-summary ul li{font-size:13px;padding:3px 0;display:flex;gap:8px}
@@ -118,18 +104,27 @@ select.opt-select{font-family:'DM Sans',sans-serif;font-size:12px;padding:5px 8p
 .kv-item{background:var(--surface2);border-radius:var(--radius-sm);padding:9px 11px}
 .kv-label{font-size:10px;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-faint);margin-bottom:3px}
 .kv-val{font-size:13px;font-weight:500}
+.kt-item{padding:8px 0;border-bottom:1px solid var(--border)}
+.kt-item:last-child{border-bottom:none}
+.kt-term{font-size:13px;font-weight:600;margin-bottom:2px}
+.kt-detail{font-size:12px;color:var(--text-muted);margin-bottom:3px}
+.kt-market{font-size:11px;color:var(--info);background:var(--info-light);padding:2px 8px;border-radius:10px;display:inline-block}
 .obligation-row{display:flex;align-items:flex-start;gap:9px;padding:7px 0;border-bottom:1px solid var(--border);font-size:13px}
 .obligation-row:last-child{border-bottom:none}
 .ob-party{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;padding:3px 7px;border-radius:20px;flex-shrink:0;margin-top:1px;min-width:60px;text-align:center}
 .ob-party-a{background:var(--info-light);color:var(--info)}
 .ob-party-b{background:var(--accent-light);color:var(--accent)}
 .ob-party-both{background:var(--surface2);color:var(--text-muted)}
-.risk-card{border-left:3px solid;border-radius:0 var(--radius-sm) var(--radius-sm) 0;padding:9px 13px;margin-bottom:7px}
+.risk-card{border-left:3px solid;border-radius:0 var(--radius-sm) var(--radius-sm) 0;padding:10px 13px;margin-bottom:8px}
 .risk-high{border-color:var(--accent2);background:var(--accent2-light)}
 .risk-medium{border-color:var(--warning);background:var(--warning-light)}
 .risk-low{border-color:var(--accent);background:var(--accent-light)}
 .risk-title{font-size:13px;font-weight:600;margin-bottom:2px}
-.risk-body{font-size:12px;color:var(--text-muted);line-height:1.5}
+.risk-body{font-size:12px;color:var(--text-muted);line-height:1.5;margin-bottom:4px}
+.risk-consequence{font-size:12px;color:var(--accent2);font-style:italic;margin-bottom:6px}
+.risk-redline{background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:8px 10px;margin-top:6px}
+.risk-redline-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-faint);margin-bottom:4px}
+.risk-redline-text{font-size:12px;color:var(--text);font-style:italic;line-height:1.5}
 .missing-item{display:flex;align-items:flex-start;gap:7px;padding:6px 9px;background:var(--surface2);border-radius:var(--radius-sm);margin-bottom:5px;font-size:13px}
 .missing-dot{width:6px;height:6px;border-radius:50%;background:var(--warning);flex-shrink:0;margin-top:6px}
 .clarif-item{display:flex;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);font-size:13px}
@@ -138,12 +133,32 @@ select.opt-select{font-family:'DM Sans',sans-serif;font-size:12px;padding:5px 8p
 .balance-bar{height:9px;border-radius:5px;background:var(--surface2);overflow:hidden;margin:7px 0}
 .balance-fill{height:100%;border-radius:5px;background:linear-gradient(90deg,var(--accent2),var(--warning),var(--accent))}
 .balance-labels{display:flex;justify-content:space-between;font-size:11px;color:var(--text-faint)}
-.disclaimer{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:11px 14px;font-size:12px;color:var(--text-faint);line-height:1.6;margin-top:18px}
-.copy-btn{margin-top:12px;background:var(--surface2);border:1px solid var(--border);color:var(--text-muted);font-family:'DM Sans',sans-serif;font-size:13px;padding:7px 14px;border-radius:var(--radius-sm);cursor:pointer;transition:all 0.15s}
+.disclaimer{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:11px 14px;font-size:12px;color:var(--text-faint);line-height:1.6;margin-top:16px}
+.copy-btn{margin-top:10px;background:var(--surface2);border:1px solid var(--border);color:var(--text-muted);font-family:'DM Sans',sans-serif;font-size:13px;padding:7px 14px;border-radius:var(--radius-sm);cursor:pointer;transition:all 0.15s}
 .copy-btn:hover{border-color:var(--accent);color:var(--accent)}
 .error-box{background:var(--accent2-light);border:1px solid var(--accent2);border-radius:var(--radius-sm);padding:13px 16px;font-size:13px;color:var(--accent2);margin:22px}
-
-/* ── Pricing page ── */
+.info-box{background:var(--info-light);border:1px solid var(--info);border-radius:var(--radius-sm);padding:13px 16px;font-size:13px;color:var(--info);margin:22px}
+/* Governing law badge */
+.gov-law-badge{display:inline-flex;align-items:center;gap:6px;background:var(--warning-light);border:1px solid rgba(122,92,26,0.3);border-radius:20px;padding:3px 10px;font-size:11px;color:var(--warning);font-weight:500;margin-left:8px}
+/* History */
+.history-page{padding:24px}
+.history-toolbar{display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap}
+.history-search{flex:1;min-width:200px;padding:9px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:'DM Sans',sans-serif;font-size:13px}
+.history-search:focus{outline:none;border-color:var(--accent)}
+.history-filter{padding:9px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);font-family:'DM Sans',sans-serif;font-size:13px;background:var(--surface);cursor:pointer}
+.history-list{display:flex;flex-direction:column;gap:10px}
+.history-item{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px 16px;cursor:pointer;transition:all 0.15s}
+.history-item:hover{border-color:var(--accent);box-shadow:var(--shadow)}
+.history-item-title{font-size:14px;font-weight:600;margin-bottom:4px}
+.history-item-meta{display:flex;gap:12px;font-size:12px;color:var(--text-faint);flex-wrap:wrap}
+.history-tag{background:var(--surface2);padding:2px 8px;border-radius:10px;font-size:11px;color:var(--text-muted)}
+.history-empty{text-align:center;padding:48px 24px;color:var(--text-faint)}
+.history-empty .big-icon{font-size:44px;margin-bottom:14px;opacity:0.5}
+.pagination{display:flex;gap:8px;justify-content:center;margin-top:20px}
+.page-btn{padding:6px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);cursor:pointer;font-size:13px;font-family:'DM Sans',sans-serif}
+.page-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.page-btn:disabled{opacity:0.4;cursor:not-allowed}
+/* Pricing */
 .pricing-page{padding:32px 24px;max-width:960px;margin:0 auto}
 .pricing-page h2{font-family:'Lora',serif;font-size:26px;text-align:center;margin-bottom:6px}
 .pricing-page .subtitle{text-align:center;color:var(--text-muted);font-size:14px;margin-bottom:28px}
@@ -160,20 +175,17 @@ select.opt-select{font-family:'DM Sans',sans-serif;font-size:12px;padding:5px 8p
 .plan-badge{position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:var(--accent);color:#fff;font-size:11px;font-weight:600;padding:3px 14px;border-radius:20px;white-space:nowrap}
 .plan-name{font-family:'Lora',serif;font-size:18px;font-weight:600;margin-bottom:4px}
 .plan-desc{font-size:12px;color:var(--text-muted);margin-bottom:16px}
-.plan-price{margin-bottom:4px}
 .plan-price .amount{font-size:32px;font-weight:600;font-family:'Lora',serif}
 .plan-price .period{font-size:13px;color:var(--text-muted)}
 .plan-annual-note{font-size:11px;color:var(--text-faint);margin-bottom:16px;min-height:16px}
 .plan-features{list-style:none;margin-bottom:20px}
 .plan-features li{font-size:13px;padding:4px 0;display:flex;gap:8px;align-items:flex-start}
 .plan-features li::before{content:'✓';color:var(--accent);font-weight:600;flex-shrink:0}
-.plan-features li.dim{color:var(--text-faint)}
-.plan-features li.dim::before{content:'–';color:var(--text-faint)}
+.plan-features li.dim{color:var(--text-faint)}.plan-features li.dim::before{content:'–';color:var(--text-faint)}
 .enterprise-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:28px;display:flex;align-items:center;justify-content:space-between;gap:24px;margin-bottom:32px}
 .enterprise-card h3{font-family:'Lora',serif;font-size:18px;margin-bottom:6px}
 .enterprise-card p{font-size:13px;color:var(--text-muted);max-width:480px}
-
-/* ── Enterprise form ── */
+/* Enterprise form */
 .enterprise-form-section{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:28px;max-width:600px;margin:0 auto}
 .enterprise-form-section h3{font-family:'Lora',serif;font-size:20px;margin-bottom:6px}
 .enterprise-form-section p{font-size:13px;color:var(--text-muted);margin-bottom:20px}
@@ -182,8 +194,16 @@ select.opt-select{font-family:'DM Sans',sans-serif;font-size:12px;padding:5px 8p
 .form-label{font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:5px;display:block;text-transform:uppercase;letter-spacing:0.05em}
 textarea.form-textarea{min-height:100px;resize:vertical}
 .form-success{background:var(--accent-light);border:1px solid var(--accent);border-radius:var(--radius-sm);padding:16px;font-size:14px;color:var(--accent);text-align:center}
-
-/* ── Upgrade wall ── */
+/* Privacy page */
+.privacy-page{padding:32px 24px;max-width:760px;margin:0 auto}
+.privacy-page h2{font-family:'Lora',serif;font-size:26px;margin-bottom:8px}
+.privacy-page .updated{font-size:13px;color:var(--text-faint);margin-bottom:28px}
+.privacy-page h3{font-family:'Lora',serif;font-size:17px;margin:24px 0 8px}
+.privacy-page p{font-size:14px;color:var(--text-muted);line-height:1.75;margin-bottom:12px}
+.privacy-page ul{margin-left:20px;margin-bottom:12px}
+.privacy-page ul li{font-size:14px;color:var(--text-muted);line-height:1.75;padding:2px 0}
+.privacy-highlight{background:var(--accent-light);border-left:4px solid var(--accent);border-radius:0 var(--radius-sm) var(--radius-sm) 0;padding:14px 16px;margin-bottom:20px;font-size:14px;color:var(--accent)}
+/* Upgrade wall */
 .upgrade-wall{padding:44px 28px;text-align:center}
 .uw-icon{font-size:44px;margin-bottom:14px}
 .upgrade-wall h2{font-family:'Lora',serif;font-size:20px;margin-bottom:8px}
@@ -191,42 +211,38 @@ textarea.form-textarea{min-height:100px;resize:vertical}
 .trial-cta{background:var(--accent-light);border:2px solid var(--accent);border-radius:var(--radius);padding:20px;margin-bottom:16px}
 .trial-cta h3{font-family:'Lora',serif;font-size:16px;color:var(--accent);margin-bottom:6px}
 .trial-cta p{font-size:13px;color:var(--text-muted);margin-bottom:12px}
-
 @media(max-width:820px){
-  .two-col{grid-template-columns:1fr}
-  .kv-grid{grid-template-columns:1fr}
-  .plans-grid{grid-template-columns:1fr}
-  .form-row{grid-template-columns:1fr}
+  .two-col{grid-template-columns:1fr}.kv-grid{grid-template-columns:1fr}
+  .plans-grid{grid-template-columns:1fr}.form-row{grid-template-columns:1fr}
   .enterprise-card{flex-direction:column;text-align:center}
-  .header{padding:12px 16px;flex-wrap:wrap}
-  .main{padding:16px 12px}
+  .header{padding:12px 16px}.main{padding:16px 12px}
 }
 </style>
 </head>
 <body>
 
-<!-- ── GATE ── -->
+<!-- GATE -->
 <div class="gate" id="gateScreen">
   <div class="gate-card">
     <div class="gate-icon">📜</div>
     <h1>Contract Summarizer</h1>
-    <p>Plain-English contract analysis for everyone. Enter your email to get started.</p>
+    <p>Plain-English contract analysis. Enter your email to get started — no password needed.</p>
     <div class="gate-features">
-      <li>3 free analyses — no credit card needed</li>
-      <li>10-day free trial of our Starter plan available</li>
-      <li>Upload Word docs, PDFs, or paste text</li>
-      <li>Red flags, risks, and plain-English summaries</li>
+      <li>3 free analyses — no credit card required</li>
+      <li>7-day free trial available — cancel anytime</li>
+      <li>Upload Word docs, digital PDFs, or Excel files</li>
+      <li>Red flags, risks, redline suggestions & plain-English summaries</li>
+      <li>Contract history saved for easy reference</li>
     </div>
-    <input type="email" id="gateEmail" placeholder="your@email.com" style="margin-bottom:12px" />
+    <input type="email" id="gateEmail" placeholder="your@email.com" style="margin-bottom:12px"/>
     <button class="btn btn-primary btn-full" onclick="startSession()">Get Started →</button>
-    <div class="gate-divider">already have an account</div>
+    <div class="gate-divider">returning user</div>
     <button class="btn btn-outline btn-full" onclick="startSession()">Sign In</button>
   </div>
 </div>
 
-<!-- ── MAIN APP ── -->
+<!-- MAIN APP -->
 <div id="appScreen" style="display:none">
-
   <div class="header">
     <div class="header-left">
       <div class="header-icon">📜</div>
@@ -236,22 +252,24 @@ textarea.form-textarea{min-height:100px;resize:vertical}
       <span class="credit-badge" id="creditBadge">Loading…</span>
       <span class="trial-badge" id="trialBadge" style="display:none"></span>
       <span class="user-pill" id="userPill"></span>
-      <button class="btn-nav" onclick="showPricing()">Plans</button>
+      <button class="btn-nav" onclick="showSection('app')">Analyze</button>
+      <button class="btn-nav" onclick="showSection('history')">History</button>
+      <button class="btn-nav" onclick="showSection('pricing')">Plans</button>
+      <button class="btn-nav" onclick="showSection('privacy')">Privacy</button>
       <button class="btn-nav" onclick="signOut()">Sign out</button>
     </div>
   </div>
 
   <div id="upgradeBanner" style="display:none" class="banner banner-upgrade">
     <span>⚡ You've used all your analyses. Upgrade to continue.</span>
-    <button class="btn-banner btn-banner-warning" onclick="showPricing()">View Plans</button>
+    <button class="btn-banner btn-banner-warning" onclick="showSection('pricing')">View Plans</button>
   </div>
-
   <div id="trialBanner" style="display:none" class="banner banner-trial">
     <span id="trialBannerText">⏳ Free trial active</span>
-    <button class="btn-banner btn-banner-accent" onclick="showPricing()">Subscribe Now</button>
+    <button class="btn-banner btn-banner-accent" onclick="showSection('pricing')">Subscribe Now</button>
   </div>
 
-  <!-- App -->
+  <!-- ── ANALYZE SECTION ── -->
   <div class="main" id="appMain">
     <div class="two-col">
       <div>
@@ -260,10 +278,11 @@ textarea.form-textarea{min-height:100px;resize:vertical}
           <div class="panel-body">
             <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
               <div class="dz-icon">📄</div>
-              <p>Drop a Word doc or PDF here</p>
-              <span>or click to browse</span>
+              <p>Drop your contract file here or click to browse</p>
+              <div class="dz-formats">Supported: Word (.doc, .docx), Digital PDF, Excel (.xlsx)</div>
+              <div class="dz-note">⚠️ Scanned paper PDFs cannot be processed automatically — see <a href="https://www.AppInnovations.biz/formats" target="_blank" onclick="event.stopPropagation()" style="color:var(--accent2)">AppInnovations.biz/formats</a> for alternatives</div>
             </div>
-            <input type="file" id="fileInput" accept=".pdf,.txt,.doc,.docx,.rtf" />
+            <input type="file" id="fileInput" accept=".pdf,.txt,.doc,.docx,.rtf,.xlsx,.xls"/>
             <div id="fileChip" style="display:none" class="file-chip">
               <span>📎</span>
               <span class="chip-name" id="chipName"></span>
@@ -274,7 +293,6 @@ textarea.form-textarea{min-height:100px;resize:vertical}
             <textarea class="contract-text" id="contractText" placeholder="Paste the full contract text here…"></textarea>
           </div>
         </div>
-
         <div class="panel" style="margin-top:14px">
           <div class="panel-header">⚙️ &nbsp;Options</div>
           <div class="panel-body">
@@ -291,6 +309,8 @@ textarea.form-textarea{min-height:100px;resize:vertical}
                 <option value="partnership">Partnership / JV</option>
                 <option value="purchase">Purchase / Sales</option>
                 <option value="settlement">Settlement</option>
+                <option value="franchise">Franchise</option>
+                <option value="loan">Loan / Finance</option>
                 <option value="other">Other</option>
               </select>
             </div>
@@ -312,12 +332,8 @@ textarea.form-textarea{min-height:100px;resize:vertical}
             </div>
           </div>
         </div>
-
-        <button class="btn btn-primary btn-full" id="analyzeBtn" onclick="analyzeContract()" style="margin-top:14px">
-          🔍 &nbsp;Analyze Contract
-        </button>
+        <button class="btn btn-primary btn-full" id="analyzeBtn" onclick="analyzeContract()" style="margin-top:14px">🔍 &nbsp;Analyze Contract</button>
       </div>
-
       <div class="panel" id="outputPanel">
         <div class="panel-header">📋 &nbsp;Contract Summary</div>
         <div id="outputBody">
@@ -331,12 +347,38 @@ textarea.form-textarea{min-height:100px;resize:vertical}
     </div>
   </div>
 
-  <!-- Pricing page -->
+  <!-- ── HISTORY SECTION ── -->
+  <div class="main" id="historyMain" style="display:none">
+    <div class="history-page">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+        <h2 style="font-family:'Lora',serif;font-size:22px">Analysis History</h2>
+        <button class="btn btn-outline" onclick="showSection('app')" style="font-size:13px;padding:8px 16px">← Back to Analyze</button>
+      </div>
+      <div class="history-toolbar">
+        <input class="history-search" type="text" id="historySearch" placeholder="Search by contract name, type, or party…" oninput="debounceSearch()"/>
+        <select class="history-filter" id="historyTypeFilter" onchange="loadHistory(0)">
+          <option value="all">All types</option>
+          <option value="real estate">Real Estate</option>
+          <option value="employment">Employment</option>
+          <option value="service">Service</option>
+          <option value="nda">NDA</option>
+          <option value="lease">Lease</option>
+          <option value="purchase">Purchase</option>
+          <option value="settlement">Settlement</option>
+        </select>
+      </div>
+      <div id="historyList">
+        <div class="history-empty"><div class="big-icon">📂</div><p>Loading history…</p></div>
+      </div>
+      <div id="historyPagination"></div>
+    </div>
+  </div>
+
+  <!-- ── PRICING SECTION ── -->
   <div class="main" id="pricingMain" style="display:none">
     <div class="pricing-page">
       <h2>Choose Your Plan</h2>
-      <p class="subtitle">All plans include Word & PDF upload, red flag detection, and plain-English summaries.</p>
-
+      <p class="subtitle">All plans include Word, PDF & Excel upload, red flag detection, redline suggestions, and plain-English summaries.</p>
       <div class="billing-toggle">
         <span>Monthly</span>
         <label class="toggle-track">
@@ -346,78 +388,64 @@ textarea.form-textarea{min-height:100px;resize:vertical}
         <span>Annual</span>
         <span class="save-badge">Save 15%</span>
       </div>
-
       <div class="plans-grid">
-
         <!-- Starter -->
         <div class="plan-card">
           <div class="plan-name">Starter</div>
           <div class="plan-desc">Perfect for individuals and occasional users</div>
-          <div class="plan-price">
-            <span class="amount" id="starterPrice">$19</span>
-            <span class="period">/month</span>
-          </div>
+          <div class="plan-price"><span class="amount" id="starterPrice">$25</span><span class="period">/month</span></div>
           <div class="plan-annual-note" id="starterNote"></div>
           <ul class="plan-features">
             <li>30 analyses per month</li>
-            <li>Documents up to 20 pages (1 credit)</li>
-            <li>20–50 page docs use 2 credits</li>
-            <li>50+ page docs use 3 credits</li>
-            <li>Word & PDF upload</li>
+            <li>1 user seat</li>
+            <li>1–25 pages = 1 credit</li>
+            <li>26–70 pages = 2 credits</li>
+            <li>71–150 pages = 3 credits</li>
+            <li>Word, PDF & Excel upload</li>
             <li>$1.00 per overage credit</li>
             <li class="dim">Multiple seats</li>
           </ul>
           <div id="starterTrialArea">
-            <button class="btn btn-outline btn-full" onclick="startTrial()" id="starterTrialBtn" style="margin-bottom:8px">Start 10-Day Free Trial</button>
+            <button class="btn btn-outline btn-full" onclick="startTrialWithCard('starter_monthly')" id="starterTrialBtn" style="margin-bottom:8px">Start 7-Day Free Trial</button>
             <button class="btn btn-primary btn-full" onclick="subscribe('starter_monthly')" id="starterSubBtn">Subscribe Monthly</button>
           </div>
         </div>
-
         <!-- Pro -->
         <div class="plan-card featured">
           <div class="plan-badge">Most Popular</div>
           <div class="plan-name">Pro</div>
           <div class="plan-desc">For active users and small business owners</div>
-          <div class="plan-price">
-            <span class="amount" id="proPrice">$49</span>
-            <span class="period">/month</span>
-          </div>
+          <div class="plan-price"><span class="amount" id="proPrice">$59</span><span class="period">/month</span></div>
           <div class="plan-annual-note" id="proNote"></div>
           <ul class="plan-features">
             <li>100 analyses per month</li>
             <li>2 user seats included</li>
-            <li>Documents up to 20 pages (1 credit)</li>
-            <li>20–50 page docs use 2 credits</li>
-            <li>50+ page docs use 3 credits</li>
-            <li>Word & PDF upload</li>
+            <li>1–25 pages = 1 credit</li>
+            <li>26–70 pages = 2 credits</li>
+            <li>71–150 pages = 3 credits</li>
+            <li>Word, PDF & Excel upload</li>
             <li>$1.00 per overage credit</li>
           </ul>
           <button class="btn btn-primary btn-full" onclick="subscribe('professional_monthly')" id="proSubBtn">Subscribe Monthly</button>
         </div>
-
         <!-- Team -->
         <div class="plan-card">
           <div class="plan-name">Team</div>
           <div class="plan-desc">For small teams and growing businesses</div>
-          <div class="plan-price">
-            <span class="amount" id="teamPrice">$89</span>
-            <span class="period">/month</span>
-          </div>
+          <div class="plan-price"><span class="amount" id="teamPrice">$119</span><span class="period">/month</span></div>
           <div class="plan-annual-note" id="teamNote"></div>
           <ul class="plan-features">
             <li>250 analyses per month</li>
             <li>4 user seats included</li>
-            <li>Documents up to 20 pages (1 credit)</li>
-            <li>20–50 page docs use 2 credits</li>
-            <li>50+ page docs use 3 credits</li>
+            <li>1–25 pages = 1 credit</li>
+            <li>26–70 pages = 2 credits</li>
+            <li>71–150 pages = 3 credits</li>
+            <li>Word, PDF & Excel upload</li>
             <li>$1.00 per overage credit</li>
           </ul>
           <button class="btn btn-primary btn-full" onclick="subscribe('team_monthly')" id="teamSubBtn">Subscribe Monthly</button>
         </div>
-
       </div>
-
-      <!-- Enterprise -->
       <div class="enterprise-card">
         <div>
           <h3>Enterprise</h3>
@@ -425,32 +453,18 @@ textarea.form-textarea{min-height:100px;resize:vertical}
         </div>
         <button class="btn btn-outline" onclick="showEnterpriseForm()" style="white-space:nowrap;flex-shrink:0">Contact Us →</button>
       </div>
-
-      <!-- Enterprise contact form -->
       <div id="enterpriseFormSection" style="display:none">
         <div class="enterprise-form-section">
           <h3>Enterprise Inquiry</h3>
           <p>Please complete the form below and we will respond within one business day.</p>
           <div id="enterpriseFormBody">
             <div class="form-row">
-              <div class="form-group">
-                <label class="form-label">Full Name *</label>
-                <input type="text" id="eName" placeholder="Jane Smith" />
-              </div>
-              <div class="form-group">
-                <label class="form-label">Email Address *</label>
-                <input type="email" id="eEmail" placeholder="jane@company.com" />
-              </div>
+              <div class="form-group"><label class="form-label">Full Name *</label><input type="text" id="eName" placeholder="Jane Smith"/></div>
+              <div class="form-group"><label class="form-label">Email Address *</label><input type="email" id="eEmail" placeholder="jane@company.com"/></div>
             </div>
             <div class="form-row">
-              <div class="form-group">
-                <label class="form-label">Company / Organization *</label>
-                <input type="text" id="eCompany" placeholder="Acme Corporation" />
-              </div>
-              <div class="form-group">
-                <label class="form-label">Phone Number</label>
-                <input type="tel" id="ePhone" placeholder="(555) 000-0000" />
-              </div>
+              <div class="form-group"><label class="form-label">Company / Organization *</label><input type="text" id="eCompany" placeholder="Acme Corporation"/></div>
+              <div class="form-group"><label class="form-label">Phone Number</label><input type="tel" id="ePhone" placeholder="(555) 000-0000"/></div>
             </div>
             <div class="form-group">
               <label class="form-label">Estimated Number of Users</label>
@@ -463,21 +477,55 @@ textarea.form-textarea{min-height:100px;resize:vertical}
                 <option value="100+">100+ users</option>
               </select>
             </div>
-            <div class="form-group">
-              <label class="form-label">Message *</label>
-              <textarea class="form-textarea" id="eMessage" placeholder="Please describe your organization's needs, contract volume, and any specific requirements…"></textarea>
-            </div>
+            <div class="form-group"><label class="form-label">Message *</label><textarea class="form-textarea" id="eMessage" placeholder="Please describe your organization's needs, contract volume, and any specific requirements…"></textarea></div>
             <button class="btn btn-primary btn-full" onclick="submitEnterpriseForm()">Send Inquiry</button>
           </div>
-          <div id="enterpriseSuccess" style="display:none" class="form-success">
-            ✅ Thank you for your inquiry. We will be in touch within one business day.
-          </div>
+          <div id="enterpriseSuccess" style="display:none" class="form-success">✅ Thank you for your inquiry. We will be in touch within one business day.</div>
         </div>
       </div>
-
       <div style="text-align:center;margin-top:24px">
-        <button class="btn btn-outline" onclick="showApp()">← Back to App</button>
+        <button class="btn btn-outline" onclick="showSection('app')">← Back to App</button>
       </div>
+    </div>
+  </div>
+
+  <!-- ── PRIVACY SECTION ── -->
+  <div class="main" id="privacyMain" style="display:none">
+    <div class="privacy-page">
+      <h2>Privacy & Data Handling Policy</h2>
+      <div class="updated">Effective date: April 1, 2026</div>
+      <div class="privacy-highlight">
+        <strong>Our core commitment:</strong> Contract text you submit for analysis is never stored on our servers, never used for AI training, and never shared with third parties. Your contracts remain confidential.
+      </div>
+      <h3>What We Collect</h3>
+      <p>We collect only the minimum information necessary to provide the service:</p>
+      <ul>
+        <li>Your email address — used solely to track your usage and manage your subscription</li>
+        <li>Analysis results — the structured summary output generated from your contract, stored to power your contract history feature</li>
+        <li>Usage data — number of analyses performed, plan type, and billing cycle information</li>
+      </ul>
+      <h3>What We Do NOT Collect or Store</h3>
+      <p>The following are explicitly not retained on our servers:</p>
+      <ul>
+        <li>The original contract text you submit for analysis</li>
+        <li>Uploaded document files in any format</li>
+        <li>Any personally identifiable information about the parties named in your contracts</li>
+      </ul>
+      <h3>How Contract Analysis Works</h3>
+      <p>When you submit a contract for analysis, the text is transmitted directly to Anthropic's Claude API using an encrypted connection. The analysis is performed, the result is returned to you, and the original contract text is immediately discarded. It is not written to any database, log file, or storage system operated by this service.</p>
+      <p>The analysis summary — which contains general descriptions of contract terms, parties, and provisions — is saved to your history so you can reference it later. The original contract text is not saved.</p>
+      <h3>Anthropic's Data Handling</h3>
+      <p>Contract text is processed by Anthropic's Claude API. Anthropic maintains its own privacy and data handling policies which govern how API requests are processed. When using the API, Anthropic does not use submitted content to train its models by default. We encourage users with particularly sensitive matters to review <a href="https://www.anthropic.com/privacy" target="_blank" style="color:var(--accent)">Anthropic's privacy policy</a> directly.</p>
+      <h3>Professional Responsibility Notice for Attorneys</h3>
+      <p>Attorneys using this service should exercise their professional judgment regarding client confidentiality obligations under their applicable rules of professional conduct before submitting client contract materials. While this service is designed with confidentiality in mind, attorneys remain responsible for compliance with their professional obligations.</p>
+      <h3>Data Security</h3>
+      <p>All data transmission between your browser and our servers uses TLS encryption. Access to stored analysis history is restricted to the email address used to create the analysis. We do not sell, rent, or share user data with any third parties except as required to operate the service (Stripe for payment processing, Anthropic for AI analysis).</p>
+      <h3>Data Retention and Deletion</h3>
+      <p>Analysis history is retained as long as you maintain an active account. You may request deletion of your account and all associated data at any time by contacting us at <a href="mailto:contractsummarizer.inquiries@gmail.com" style="color:var(--accent)">contractsummarizer.inquiries@gmail.com</a>. We will process deletion requests within 30 days.</p>
+      <h3>Contact</h3>
+      <p>For privacy questions or data deletion requests, please contact us at <a href="mailto:contractsummarizer.inquiries@gmail.com" style="color:var(--accent)">contractsummarizer.inquiries@gmail.com</a>.</p>
+      <p style="font-size:12px;color:var(--text-faint);margin-top:24px">This privacy policy is provided for informational purposes. Users with specific legal privacy compliance requirements should consult qualified legal counsel.</p>
+      <div style="margin-top:24px"><button class="btn btn-outline" onclick="showSection('app')">← Back to App</button></div>
     </div>
   </div>
 
@@ -490,6 +538,19 @@ let uploadedFileName = null;
 let uploadedEstimatedPages = null;
 let currentUsage = null;
 let isAnnual = false;
+let historySearchTimeout = null;
+let historyCurrentPage = 0;
+const HISTORY_PAGE_SIZE = 10;
+
+// ── Navigation
+function showSection(section) {
+  document.getElementById('appMain').style.display = section === 'app' ? 'block' : 'none';
+  document.getElementById('historyMain').style.display = section === 'history' ? 'block' : 'none';
+  document.getElementById('pricingMain').style.display = section === 'pricing' ? 'block' : 'none';
+  document.getElementById('privacyMain').style.display = section === 'privacy' ? 'block' : 'none';
+  if (section === 'history') loadHistory(0);
+  if (section === 'pricing') updatePricingDisplay(isAnnual);
+}
 
 // ── Session
 function startSession() {
@@ -505,31 +566,14 @@ function signOut() {
   currentEmail = null;
   document.getElementById('gateScreen').style.display = 'flex';
   document.getElementById('appScreen').style.display = 'none';
-  resetOutputBody();
 }
 
 function showApp() {
   document.getElementById('gateScreen').style.display = 'none';
   document.getElementById('appScreen').style.display = 'block';
-  document.getElementById('appMain').style.display = 'block';
-  document.getElementById('pricingMain').style.display = 'none';
   document.getElementById('userPill').textContent = currentEmail;
+  showSection('app');
   loadStatus();
-}
-
-function showPricing() {
-  document.getElementById('appMain').style.display = 'none';
-  document.getElementById('pricingMain').style.display = 'block';
-  updatePricingDisplay(isAnnual);
-}
-
-function resetOutputBody() {
-  document.getElementById('outputBody').innerHTML = `
-    <div class="output-empty">
-      <div class="big-icon">📑</div>
-      <p style="font-size:15px">No contract analyzed yet</p>
-      <span style="font-size:13px;margin-top:6px;display:block">Upload a file or paste text, then click Analyze.</span>
-    </div>`;
 }
 
 // ── Status
@@ -539,7 +583,7 @@ async function loadStatus() {
     const data = await res.json();
     currentUsage = data;
     updateUsageUI(data);
-  } catch(e) { /* silent */ }
+  } catch(e) {}
 }
 
 function updateUsageUI(data) {
@@ -548,9 +592,7 @@ function updateUsageUI(data) {
   const trialBanner = document.getElementById('trialBanner');
   const upgradeBanner = document.getElementById('upgradeBanner');
   const analyzeBtn = document.getElementById('analyzeBtn');
-
   const remaining = data.creditsRemaining || 0;
-  const limit = data.creditsLimit || 3;
 
   if (data.subscribed) {
     badge.textContent = `✓ ${remaining} credits left`;
@@ -560,46 +602,34 @@ function updateUsageUI(data) {
     badge.className = remaining <= 5 ? 'credit-badge warning' : 'credit-badge';
     trialBadge.textContent = `${data.trialDaysRemaining} day${data.trialDaysRemaining === 1 ? '' : 's'} left in trial`;
     trialBadge.style.display = 'inline';
-    if (data.trialDaysRemaining <= 3) {
+    if (data.trialDaysRemaining <= 2) {
       trialBanner.style.display = 'flex';
-      document.getElementById('trialBannerText').textContent = `⏳ Your free trial expires in ${data.trialDaysRemaining} day${data.trialDaysRemaining === 1 ? '' : 's'} — subscribe to keep access`;
+      document.getElementById('trialBannerText').textContent = `⏳ Trial expires in ${data.trialDaysRemaining} day${data.trialDaysRemaining === 1 ? '' : 's'} — subscribe to keep access`;
     }
   } else {
-    badge.textContent = `${remaining} of ${limit} free analyses left`;
+    badge.textContent = `${remaining} of ${data.creditsLimit} free analyses left`;
     badge.className = remaining <= 1 ? 'credit-badge danger' : remaining <= 2 ? 'credit-badge warning' : 'credit-badge';
     trialBadge.style.display = 'none';
   }
 
-  if (remaining <= 0) {
-    upgradeBanner.style.display = 'flex';
-    analyzeBtn.disabled = true;
-  } else {
-    upgradeBanner.style.display = 'none';
-    analyzeBtn.disabled = false;
-  }
-
-  // Update trial button on pricing page
+  if (remaining <= 0) { upgradeBanner.style.display = 'flex'; analyzeBtn.disabled = true; }
+  else { upgradeBanner.style.display = 'none'; analyzeBtn.disabled = false; }
   updateTrialButton(data);
 }
 
 function updateTrialButton(data) {
-  const trialBtn = document.getElementById('starterTrialBtn');
-  const trialArea = document.getElementById('starterTrialArea');
-  if (!trialBtn) return;
-  if (data.hadTrial || data.subscribed || data.plan === 'starter_trial') {
-    trialBtn.style.display = 'none';
-  } else {
-    trialBtn.style.display = 'block';
-  }
+  const btn = document.getElementById('starterTrialBtn');
+  if (!btn) return;
+  btn.style.display = (data.hadTrial || data.subscribed || data.plan === 'starter_trial') ? 'none' : 'block';
 }
 
-// ── Pricing display
+// ── Pricing
 function updatePricingDisplay(annual) {
   isAnnual = annual;
   const prices = {
-    starter: annual ? { amount: '$16.15', note: 'Billed $193.80/year — save $34.20' } : { amount: '$19', note: '' },
-    pro: annual ? { amount: '$41.65', note: 'Billed $499.80/year — save $88.20' } : { amount: '$49', note: '' },
-    team: annual ? { amount: '$75.79', note: 'Billed $909.48/year — save $178.52' } : { amount: '$89', note: '' },
+    starter: annual ? { amount: '$21.25', note: 'Billed $255.00/year — save $45.00' } : { amount: '$25', note: '' },
+    pro: annual ? { amount: '$50.19', note: 'Billed $602.28/year — save $105.72' } : { amount: '$59', note: '' },
+    team: annual ? { amount: '$101.09', note: 'Billed $1,213.08/year — save $214.92' } : { amount: '$119', note: '' },
   };
   document.getElementById('starterPrice').textContent = prices.starter.amount;
   document.getElementById('starterNote').textContent = prices.starter.note;
@@ -612,34 +642,24 @@ function updatePricingDisplay(annual) {
   document.getElementById('starterSubBtn').onclick = () => subscribe('starter_' + interval);
   document.getElementById('proSubBtn').onclick = () => subscribe('professional_' + interval);
   document.getElementById('teamSubBtn').onclick = () => subscribe('team_' + interval);
-  document.getElementById('starterSubBtn').textContent = annual ? 'Subscribe Annually' : 'Subscribe Monthly';
-  document.getElementById('proSubBtn').textContent = annual ? 'Subscribe Annually' : 'Subscribe Monthly';
-  document.getElementById('teamSubBtn').textContent = annual ? 'Subscribe Annually' : 'Subscribe Monthly';
+  ['starterSubBtn','proSubBtn','teamSubBtn'].forEach(id => {
+    document.getElementById(id).textContent = annual ? 'Subscribe Annually' : 'Subscribe Monthly';
+  });
+  document.getElementById('starterTrialBtn').onclick = () => startTrialWithCard('starter_' + interval);
 }
 
-// ── Trial
-async function startTrial() {
+// ── Trial with card
+async function startTrialWithCard(planKey) {
   try {
-    const res = await fetch('/api/start-trial', {
+    const res = await fetch('/api/create-checkout', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: currentEmail }),
+      body: JSON.stringify({ email: currentEmail, planKey, isTrial: true }),
     });
     const data = await res.json();
-    if (!res.ok) {
-      if (data.error === 'trial_used') {
-        alert('A free trial has already been used for this email address. Please subscribe to continue.');
-      } else {
-        alert(data.message || 'Could not start trial. Please subscribe directly.');
-      }
-      return;
-    }
-    alert(`🎉 Your 10-day free trial has started! You have 40 analyses to use. Trial expires: ${new Date(data.trialExpiry).toLocaleDateString()}`);
-    loadStatus();
-    showApp();
-  } catch(e) {
-    alert('Error starting trial. Please try again.');
-  }
+    if (data.url) window.location.href = data.url;
+    else alert('Could not open checkout. Please try again.');
+  } catch(e) { alert('Error connecting to payment system.'); }
 }
 
 // ── Subscribe
@@ -653,9 +673,7 @@ async function subscribe(planKey) {
     const data = await res.json();
     if (data.url) window.location.href = data.url;
     else alert('Could not open checkout. Please try again.');
-  } catch(e) {
-    alert('Error connecting to payment system.');
-  }
+  } catch(e) { alert('Error connecting to payment system.'); }
 }
 
 // ── Enterprise form
@@ -673,28 +691,17 @@ async function submitEnterpriseForm() {
   const phone = document.getElementById('ePhone').value.trim();
   const numberOfUsers = document.getElementById('eUsers').value;
   const message = document.getElementById('eMessage').value.trim();
-
-  if (!name || !email || !company || !message) {
-    alert('Please fill in all required fields (name, email, company, and message).');
-    return;
-  }
-
+  if (!name || !email || !company || !message) { alert('Please fill in all required fields.'); return; }
   try {
     const res = await fetch('/api/enterprise-contact', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, email, company, phone, numberOfUsers, message }),
     });
-    const data = await res.json();
-    if (res.ok) {
+    if ((await res.json()) && res.ok) {
       document.getElementById('enterpriseFormBody').style.display = 'none';
       document.getElementById('enterpriseSuccess').style.display = 'block';
-    } else {
-      alert(data.error || 'Submission failed. Please try again.');
     }
-  } catch(e) {
-    alert('Error submitting form. Please try again.');
-  }
+  } catch(e) { alert('Error submitting form. Please try again.'); }
 }
 
 // ── File handling
@@ -707,10 +714,40 @@ fileInput.addEventListener('change', () => { if (fileInput.files[0]) handleFile(
 
 async function handleFile(file) {
   uploadedFileName = file.name;
+  const filename = file.name.toLowerCase();
   document.getElementById('chipName').textContent = file.name + ' (reading…)';
   document.getElementById('chipCredit').textContent = '';
   document.getElementById('fileChip').style.display = 'flex';
 
+  // Handle Excel client-side via SheetJS
+  if (filename.endsWith('.xlsx') || filename.endsWith('.xls')) {
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+      let text = '';
+      workbook.SheetNames.forEach(sheetName => {
+        const sheet = workbook.Sheets[sheetName];
+        text += `\n--- Sheet: ${sheetName} ---\n`;
+        text += XLSX.utils.sheet_to_csv(sheet);
+      });
+      if (!text || text.trim().length < 50) {
+        alert('Could not extract content from this Excel file. Please paste the content manually.');
+        clearFile(); return;
+      }
+      uploadedFileContent = text.trim();
+      uploadedEstimatedPages = Math.ceil(text.length / 1500);
+      const creditCost = uploadedEstimatedPages <= 25 ? 1 : uploadedEstimatedPages <= 70 ? 2 : 3;
+      document.getElementById('chipName').textContent = file.name;
+      document.getElementById('chipCredit').textContent = `~${uploadedEstimatedPages}p · ${creditCost} credit${creditCost > 1 ? 's' : ''}`;
+      document.getElementById('contractText').placeholder = 'Excel file loaded — click Analyze Contract to proceed.';
+      return;
+    } catch(e) {
+      alert('Could not read Excel file. Please paste the content manually.');
+      clearFile(); return;
+    }
+  }
+
+  // All other files — send to server
   try {
     const formData = new FormData();
     formData.append('file', file);
@@ -720,11 +757,12 @@ async function handleFile(file) {
     if (!res.ok) {
       if (data.error === 'scanned_pdf') {
         alert('⚠️ ' + data.message);
+      } else if (data.error === 'page_limit_exceeded') {
+        alert('⚠️ ' + data.message);
       } else {
         alert('Could not read file: ' + (data.error || 'Unknown error') + '\n\nPlease paste the contract text manually.');
       }
-      clearFile();
-      return;
+      clearFile(); return;
     }
 
     uploadedFileContent = data.text;
@@ -740,9 +778,7 @@ async function handleFile(file) {
 }
 
 function clearFile() {
-  uploadedFileContent = null;
-  uploadedFileName = null;
-  uploadedEstimatedPages = null;
+  uploadedFileContent = null; uploadedFileName = null; uploadedEstimatedPages = null;
   document.getElementById('fileChip').style.display = 'none';
   document.getElementById('contractText').placeholder = 'Paste the full contract text here…';
   fileInput.value = '';
@@ -765,11 +801,9 @@ async function analyzeContract() {
 
   try {
     const res = await fetch('/api/analyze', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        email: currentEmail,
-        contractContent,
+        email: currentEmail, contractContent,
         contractType: document.getElementById('contractType').value,
         outputDetail: document.getElementById('outputDetail').value,
         perspective: document.getElementById('perspective').value,
@@ -779,8 +813,9 @@ async function analyzeContract() {
 
     const data = await res.json();
 
-    if (res.status === 402) {
-      renderUpgradeWall(data);
+    if (res.status === 402) { renderUpgradeWall(data); return; }
+    if (res.status === 400 && data.error === 'page_limit_exceeded') {
+      outputBody.innerHTML = `<div class="info-box">📄 <strong>Document too long.</strong> ${esc(data.message)}</div>`;
       return;
     }
     if (!res.ok) throw new Error(data.error || 'Analysis failed');
@@ -797,30 +832,107 @@ async function analyzeContract() {
   }
 }
 
+// ── History
+function debounceSearch() {
+  clearTimeout(historySearchTimeout);
+  historySearchTimeout = setTimeout(() => loadHistory(0), 400);
+}
+
+async function loadHistory(offset) {
+  historyCurrentPage = offset;
+  const search = document.getElementById('historySearch')?.value.trim() || '';
+  const type = document.getElementById('historyTypeFilter')?.value || 'all';
+  const listEl = document.getElementById('historyList');
+  const paginationEl = document.getElementById('historyPagination');
+
+  listEl.innerHTML = `<div class="history-empty"><div class="big-icon">⏳</div><p>Loading…</p></div>`;
+
+  try {
+    const params = new URLSearchParams({ email: currentEmail, limit: HISTORY_PAGE_SIZE, offset });
+    if (search) params.append('search', search);
+    if (type !== 'all') params.append('type', type);
+
+    const res = await fetch(`/api/history?${params}`);
+    const data = await res.json();
+
+    if (!data.historyEnabled) {
+      listEl.innerHTML = `<div class="history-empty"><div class="big-icon">📂</div><p>History feature coming soon</p><span style="font-size:13px;display:block;margin-top:6px">Contract history will be available in an upcoming update.</span></div>`;
+      paginationEl.innerHTML = '';
+      return;
+    }
+
+    if (!data.analyses || data.analyses.length === 0) {
+      listEl.innerHTML = `<div class="history-empty"><div class="big-icon">📂</div><p>${search ? 'No results found' : 'No analyses yet'}</p><span style="font-size:13px;display:block;margin-top:6px">${search ? 'Try a different search term.' : 'Analyze your first contract to see it here.'}</span></div>`;
+      paginationEl.innerHTML = '';
+      return;
+    }
+
+    listEl.innerHTML = data.analyses.map(a => {
+      const parties = (() => { try { return JSON.parse(a.parties || '[]').map(p => p.name).join(', '); } catch { return ''; } })();
+      const date = a.created_at ? new Date(a.created_at).toLocaleDateString() : '';
+      return `<div class="history-item" onclick="viewHistoryItem('${a.id}')">
+        <div class="history-item-title">${esc(a.doc_title || 'Untitled Contract')}</div>
+        <div class="history-item-meta">
+          ${a.contract_type ? `<span class="history-tag">${esc(a.contract_type)}</span>` : ''}
+          ${a.governing_law ? `<span class="history-tag">📍 ${esc(a.governing_law)}</span>` : ''}
+          ${parties ? `<span>${esc(parties)}</span>` : ''}
+          ${date ? `<span>${date}</span>` : ''}
+          <span>${a.page_count || '?'} pages · ${a.credit_cost || 1} credit${(a.credit_cost||1) > 1 ? 's' : ''}</span>
+        </div>
+      </div>`;
+    }).join('');
+
+    // Pagination
+    const totalPages = Math.ceil(data.total / HISTORY_PAGE_SIZE);
+    const currentPageNum = Math.floor(offset / HISTORY_PAGE_SIZE);
+    if (totalPages > 1) {
+      paginationEl.innerHTML = `
+        <button class="page-btn" onclick="loadHistory(${(currentPageNum-1)*HISTORY_PAGE_SIZE})" ${currentPageNum === 0 ? 'disabled' : ''}>← Prev</button>
+        <span class="page-btn active">${currentPageNum + 1} of ${totalPages}</span>
+        <button class="page-btn" onclick="loadHistory(${(currentPageNum+1)*HISTORY_PAGE_SIZE})" ${currentPageNum >= totalPages-1 ? 'disabled' : ''}>Next →</button>`;
+    } else {
+      paginationEl.innerHTML = '';
+    }
+  } catch(err) {
+    listEl.innerHTML = `<div class="error-box">⚠️ Could not load history. Please try again.</div>`;
+  }
+}
+
+async function viewHistoryItem(id) {
+  try {
+    const res = await fetch(`/api/history/${id}?email=${encodeURIComponent(currentEmail)}`);
+    const data = await res.json();
+    if (!res.ok) { alert('Could not load this analysis.'); return; }
+    showSection('app');
+    renderSummary(data.analysis.result, currentUsage || {});
+    window.scrollTo(0, 0);
+  } catch(e) { alert('Could not load this analysis.'); }
+}
+
+// ── Upgrade wall
 function renderUpgradeWall(data) {
-  const isTrialEnd = data.plan === 'starter_trial';
   const hasTrial = currentUsage?.hadTrial;
   document.getElementById('outputBody').innerHTML = `
     <div class="upgrade-wall">
       <div class="uw-icon">🔒</div>
-      <h2>${isTrialEnd ? 'Your trial analyses are used up' : 'You\'ve used all your free analyses'}</h2>
-      <p>${isTrialEnd ? 'Subscribe to continue analyzing contracts with full access.' : 'Start a free 10-day trial or subscribe to continue.'}</p>
-      ${!hasTrial && !isTrialEnd ? `<div class="trial-cta">
-        <h3>🎁 Start your free 10-day trial</h3>
-        <p>Get 40 analyses free — no credit card required. Trial available once per email.</p>
-        <button class="btn btn-primary btn-full" onclick="startTrial()">Start Free Trial</button>
+      <h2>${data.plan === 'starter_trial' ? 'Your trial analyses are used up' : 'You\'ve used all your free analyses'}</h2>
+      <p>${data.plan === 'starter_trial' ? 'Subscribe to continue analyzing contracts.' : 'Start a free 7-day trial or subscribe to continue.'}</p>
+      ${!hasTrial && data.plan !== 'starter_trial' ? `<div class="trial-cta">
+        <h3>🎁 Start your free 7-day trial</h3>
+        <p>Get 30 analyses free. A credit card is required — no charge until day 7, cancel anytime before then.</p>
+        <button class="btn btn-primary btn-full" onclick="startTrialWithCard('starter_monthly')">Start Free Trial — No Charge Today</button>
       </div>` : ''}
-      <button class="btn btn-stripe btn-full" onclick="showPricing()" style="margin-top:8px">View Subscription Plans →</button>
+      <button class="btn btn-stripe btn-full" onclick="showSection('pricing')" style="margin-top:8px">View Subscription Plans →</button>
     </div>`;
 }
 
+// ── Render summary
 function renderSummary(r, usage) {
   const balancePct = Math.min(100, Math.max(0, r.balance?.score ?? 50));
   const parties = r.parties || [];
   const leftLabel = parties[0]?.name || 'Party A';
   const rightLabel = parties[1]?.name || 'Party B';
 
-  const execHtml = (r.executiveSummary||[]).map(b => `<li>${esc(b)}</li>`).join('');
   const kvsHtml = [
     { label: 'Document Type', val: r.contractType || r.docTitle || '—' },
     { label: 'Date', val: r.docDate || 'Not specified' },
@@ -828,11 +940,10 @@ function renderSummary(r, usage) {
   ].map(k => `<div class="kv-item"><div class="kv-label">${esc(k.label)}</div><div class="kv-val">${esc(k.val)}</div></div>`).join('');
 
   const keyTermsHtml = (r.keyTerms||[]).map(t => `
-    <div class="obligation-row">
-      <div style="flex:1">
-        <strong style="font-size:13px">${esc(t.term)}</strong>
-        <div style="font-size:12px;color:var(--text-muted);margin-top:2px">${esc(t.detail)}</div>
-      </div>
+    <div class="kt-item">
+      <div class="kt-term">${esc(t.term)}</div>
+      <div class="kt-detail">${esc(t.detail)}</div>
+      ${t.marketContext ? `<span class="kt-market">📊 ${esc(t.marketContext)}</span>` : ''}
     </div>`).join('');
 
   const obligationsHtml = (r.obligations||[]).map((ob,i) => {
@@ -845,6 +956,8 @@ function renderSummary(r, usage) {
     <div class="risk-card risk-${rf.severity||'medium'}">
       <div class="risk-title">${esc(rf.title)}</div>
       <div class="risk-body">${esc(rf.detail)}</div>
+      ${rf.consequence ? `<div class="risk-consequence">⚡ Practical impact: ${esc(rf.consequence)}</div>` : ''}
+      ${rf.suggestedLanguage ? `<div class="risk-redline"><div class="risk-redline-label">✏️ Suggested alternative language</div><div class="risk-redline-text">${esc(rf.suggestedLanguage)}</div></div>` : ''}
     </div>`).join('');
 
   const missingHtml = (r.missing||[]).map(m =>
@@ -853,17 +966,19 @@ function renderSummary(r, usage) {
   const clarifHtml = (r.clarifications||[]).map((c,i) =>
     `<div class="clarif-item"><div class="clarif-num">${i+1}</div><div>${esc(c)}</div></div>`).join('');
 
-  const creditInfo = usage.creditCost > 1
-    ? ` &nbsp;·&nbsp; ${usage.creditCost} credits used (${usage.pageCount} pages)`
-    : ` &nbsp;·&nbsp; 1 credit used`;
+  const execHtml = (r.executiveSummary||[]).map(b => `<li>${esc(b)}</li>`).join('');
 
-  const remaining = `${usage.creditsRemaining} credit${usage.creditsRemaining === 1 ? '' : 's'} remaining`;
+  const creditInfo = usage.creditCost > 1 ? ` · ${usage.creditCost} credits (${usage.pageCount}p)` : ' · 1 credit';
+  const remaining = usage.creditsRemaining !== undefined ? ` · ${usage.creditsRemaining} remaining` : '';
+  const govLaw = r.governingLaw ? `<span class="gov-law-badge">⚖️ ${esc(r.governingLaw)} law</span>` : '';
 
   document.getElementById('outputBody').innerHTML = `
     <div class="summary-wrap">
-      <div class="doc-badge">📄 &nbsp;${esc(r.docTitle||r.contractType||'Contract')}${r.docDate?' &nbsp;·&nbsp; '+esc(r.docDate):''}${creditInfo} &nbsp;·&nbsp; ${remaining}</div>
+      <div class="doc-badge">📄 &nbsp;${esc(r.docTitle||r.contractType||'Contract')}${r.docDate?' · '+esc(r.docDate):''}${creditInfo}${remaining}${govLaw}</div>
 
-      ${execHtml?`<div class="exec-summary"><h3>Executive Summary</h3><ul>${execHtml}</ul></div>`:''}
+      ${r.plainSummary ? `<div class="plain-summary"><strong>In plain English:</strong> ${esc(r.plainSummary)}</div>` : ''}
+
+      ${execHtml ? `<div class="exec-summary"><h3>Executive Summary</h3><ul>${execHtml}</ul></div>` : ''}
 
       <div class="section">
         <div class="section-title"><span class="s-icon" style="background:var(--info-light);color:var(--info)">👥</span>Parties &amp; Purpose</div>
@@ -871,10 +986,10 @@ function renderSummary(r, usage) {
         <p style="margin-top:10px;font-size:13px;color:var(--text-muted)">${esc(r.purpose||'')}</p>
       </div>
 
-      ${keyTermsHtml?`<div class="section"><div class="section-title"><span class="s-icon" style="background:var(--accent-light);color:var(--accent)">📋</span>Key Terms</div>${keyTermsHtml}</div>`:''}
-      ${obligationsHtml?`<div class="section"><div class="section-title"><span class="s-icon" style="background:var(--warning-light);color:var(--warning)">✅</span>Obligations</div>${obligationsHtml}</div>`:''}
-      ${redFlagsHtml?`<div class="section"><div class="section-title"><span class="s-icon" style="background:var(--accent2-light);color:var(--accent2)">⚠️</span>Red Flags &amp; Risks</div>${redFlagsHtml}</div>`:''}
-      ${missingHtml?`<div class="section"><div class="section-title"><span class="s-icon" style="background:var(--surface2);color:var(--text-muted)">🔍</span>Missing Provisions</div>${missingHtml}</div>`:''}
+      ${keyTermsHtml ? `<div class="section"><div class="section-title"><span class="s-icon" style="background:var(--accent-light);color:var(--accent)">📋</span>Key Terms <span style="font-size:11px;font-weight:400;color:var(--text-faint);margin-left:4px">includes market context</span></div>${keyTermsHtml}</div>` : ''}
+      ${obligationsHtml ? `<div class="section"><div class="section-title"><span class="s-icon" style="background:var(--warning-light);color:var(--warning)">✅</span>Obligations</div>${obligationsHtml}</div>` : ''}
+      ${redFlagsHtml ? `<div class="section"><div class="section-title"><span class="s-icon" style="background:var(--accent2-light);color:var(--accent2)">⚠️</span>Red Flags &amp; Risks <span style="font-size:11px;font-weight:400;color:var(--text-faint);margin-left:4px">includes redline suggestions</span></div>${redFlagsHtml}</div>` : ''}
+      ${missingHtml ? `<div class="section"><div class="section-title"><span class="s-icon" style="background:var(--surface2);color:var(--text-muted)">🔍</span>Missing Provisions</div>${missingHtml}</div>` : ''}
 
       <div class="section">
         <div class="section-title"><span class="s-icon" style="background:var(--info-light);color:var(--info)">⚖️</span>Tone &amp; Balance</div>
@@ -883,7 +998,7 @@ function renderSummary(r, usage) {
         <p style="font-size:13px;color:var(--text-muted);margin-top:6px"><strong style="color:var(--text)">${esc(r.balance?.label||'')}</strong> — ${esc(r.balance?.explanation||r.overallTone||'')}</p>
       </div>
 
-      ${clarifHtml?`<div class="section"><div class="section-title"><span class="s-icon" style="background:var(--accent-light);color:var(--accent)">💬</span>Suggested Clarifications</div>${clarifHtml}</div>`:''}
+      ${clarifHtml ? `<div class="section"><div class="section-title"><span class="s-icon" style="background:var(--accent-light);color:var(--accent)">💬</span>Suggested Clarifications</div>${clarifHtml}</div>` : ''}
 
       <div class="disclaimer"><strong>Disclaimer:</strong> This summary is for informational purposes only and is not legal advice. It is a general interpretation of contract language intended to highlight key provisions and potential issues. Always consult a qualified attorney before relying on or acting under any contract.</div>
       <button class="copy-btn" onclick="copyText()">📋 Copy Summary</button>
@@ -906,7 +1021,6 @@ function esc(s) {
 window.addEventListener('load', () => {
   const saved = localStorage.getItem('cs_email');
   if (saved) { currentEmail = saved; showApp(); }
-
   const params = new URLSearchParams(window.location.search);
   if (params.get('session_id') && params.get('email')) {
     currentEmail = decodeURIComponent(params.get('email'));
