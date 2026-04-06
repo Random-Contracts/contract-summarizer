@@ -136,6 +136,11 @@ select.opt-select{font-family:'DM Sans',sans-serif;font-size:12px;padding:5px 8p
 .disclaimer{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:11px 14px;font-size:12px;color:var(--text-faint);line-height:1.6;margin-top:16px}
 .copy-btn{margin-top:10px;background:var(--surface2);border:1px solid var(--border);color:var(--text-muted);font-family:'DM Sans',sans-serif;font-size:13px;padding:7px 14px;border-radius:var(--radius-sm);cursor:pointer;transition:all 0.15s}
 .copy-btn:hover{border-color:var(--accent);color:var(--accent)}
+.actions-bar{display:flex;align-items:center;gap:8px;margin-top:12px;flex-wrap:wrap}
+.actions-btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:var(--radius-sm);font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;transition:all 0.15s;border:1px solid var(--border);background:var(--surface2);color:var(--text-muted)}
+.actions-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-light)}
+.actions-btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.actions-btn.primary:hover{background:#1e3a30}
 .error-box{background:var(--accent2-light);border:1px solid var(--accent2);border-radius:var(--radius-sm);padding:13px 16px;font-size:13px;color:var(--accent2);margin:22px}
 .info-box{background:var(--info-light);border:1px solid var(--info);border-radius:var(--radius-sm);padding:13px 16px;font-size:13px;color:var(--info);margin:22px}
 /* Governing law badge */
@@ -279,8 +284,10 @@ textarea.form-textarea{min-height:100px;resize:vertical}
             <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
               <div class="dz-icon">📄</div>
               <p>Drop your contract file here or click to browse</p>
-              <div class="dz-formats">Supported: Word (.doc, .docx), Digital PDF, Excel (.xlsx)</div>
-              <div class="dz-note">⚠️ Scanned paper PDFs cannot be processed automatically — see <a href="https://www.AppInnovations.biz/formats" target="_blank" onclick="event.stopPropagation()" style="color:var(--accent2)">AppInnovations.biz/formats</a> for alternatives</div>
+              <div class="dz-formats">Supported: Word (.doc, .docx) &nbsp;·&nbsp; Digital PDF &nbsp;·&nbsp; Excel (.xlsx)</div>
+            </div>
+            <div style="font-size:11px;color:var(--text-faint);margin-top:6px;text-align:center;line-height:1.5">
+              Questions about supported file formats? Visit <a href="https://www.AppInnovations.biz/formats" target="_blank" style="color:var(--text-faint);text-decoration:underline">AppInnovations.biz/formats</a>
             </div>
             <input type="file" id="fileInput" accept=".pdf,.txt,.doc,.docx,.rtf,.xlsx,.xls"/>
             <div id="fileChip" style="display:none" class="file-chip">
@@ -521,9 +528,9 @@ textarea.form-textarea{min-height:100px;resize:vertical}
       <h3>Data Security</h3>
       <p>All data transmission between your browser and our servers uses TLS encryption. Access to stored analysis history is restricted to the email address used to create the analysis. We do not sell, rent, or share user data with any third parties except as required to operate the service (Stripe for payment processing, Anthropic for AI analysis).</p>
       <h3>Data Retention and Deletion</h3>
-      <p>Analysis history is retained as long as you maintain an active account. You may request deletion of your account and all associated data at any time by contacting us at <a href="mailto:contractsummarizer.inquiries@gmail.com" style="color:var(--accent)">contractsummarizer.inquiries@gmail.com</a>. We will process deletion requests within 30 days.</p>
+      <p>Analysis history is retained as long as you maintain an active account. You may request deletion of your account and all associated data at any time by contacting us at <a href="/cdn-cgi/l/email-protection#70131f1e040211130403051d1d1102190a15025e191e0105190219150330171d11191c5e131f1d" style="color:var(--accent)"><span class="__cf_email__" data-cfemail="0c6f6362787e6d6f787f7961616d7e6576697e2265627d79657e65697f4c6b616d6560226f6361">[email&#160;protected]</span></a>. We will process deletion requests within 30 days.</p>
       <h3>Contact</h3>
-      <p>For privacy questions or data deletion requests, please contact us at <a href="mailto:contractsummarizer.inquiries@gmail.com" style="color:var(--accent)">contractsummarizer.inquiries@gmail.com</a>.</p>
+      <p>For privacy questions or data deletion requests, please contact us at <a href="/cdn-cgi/l/email-protection#dcbfb3b2a8aebdbfa8afa9b1b1bdaeb5a6b9aef2b5b2ada9b5aeb5b9af9cbbb1bdb5b0f2bfb3b1" style="color:var(--accent)"><span class="__cf_email__" data-cfemail="4b2824253f392a283f383e26262a3922312e396522253a3e2239222e380b2c262a222765282426">[email&#160;protected]</span></a>.</p>
       <p style="font-size:12px;color:var(--text-faint);margin-top:24px">This privacy policy is provided for informational purposes. Users with specific legal privacy compliance requirements should consult qualified legal counsel.</p>
       <div style="margin-top:24px"><button class="btn btn-outline" onclick="showSection('app')">← Back to App</button></div>
     </div>
@@ -531,7 +538,7 @@ textarea.form-textarea{min-height:100px;resize:vertical}
 
 </div>
 
-<script>
+<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
 let currentEmail = null;
 let uploadedFileContent = null;
 let uploadedFileName = null;
@@ -790,6 +797,40 @@ async function analyzeContract() {
   const hasFile = uploadedFileContent && uploadedFileName;
   if (!text && !hasFile) { alert('Please upload a contract file or paste contract text first.'); return; }
 
+  // ── Overage warning system
+  if (currentUsage && currentUsage.subscribed) {
+    const estimatedCreditCost = hasFile && uploadedEstimatedPages
+      ? (uploadedEstimatedPages <= 25 ? 1 : uploadedEstimatedPages <= 70 ? 2 : 3)
+      : 1;
+    const remaining = currentUsage.creditsRemaining || 0;
+    const planName = currentUsage.plan ? currentUsage.plan.replace('_monthly','').replace('_annual','').replace('_',' ') : 'current';
+
+    // Last credit warning — this analysis will use the last credit
+    if (remaining === estimatedCreditCost && remaining > 0) {
+      const proceed = confirm(
+        `⚠️ Credit Notice\n\n` +
+        `This analysis will use your last ${estimatedCreditCost > 1 ? estimatedCreditCost + ' credits' : 'credit'}.\n\n` +
+        `Any additional analyses this billing period will be charged at $1.00 per credit.\n\n` +
+        `Would you like to upgrade your plan now to avoid overage charges?\n\n` +
+        `Click OK to proceed with this analysis anyway, or Cancel to upgrade first.`
+      );
+      if (!proceed) { showSection('pricing'); return; }
+    }
+
+    // Overage warning — already at or below zero, next analysis will be charged
+    if (remaining < estimatedCreditCost && remaining >= 0) {
+      const overageCost = estimatedCreditCost;
+      const proceed = confirm(
+        `⚠️ Overage Charge Notice\n\n` +
+        `You have ${remaining} credit${remaining === 1 ? '' : 's'} remaining but this document requires ${estimatedCreditCost} credit${estimatedCreditCost > 1 ? 's' : ''}.\n\n` +
+        `Proceeding will incur an overage charge of $${overageCost}.00 on your next invoice.\n\n` +
+        `Would you like to upgrade your plan instead to avoid this charge?\n\n` +
+        `Click OK to proceed and accept the overage charge, or Cancel to upgrade first.`
+      );
+      if (!proceed) { showSection('pricing'); return; }
+    }
+  }
+
   const analyzeBtn = document.getElementById('analyzeBtn');
   const outputBody = document.getElementById('outputBody');
   analyzeBtn.disabled = true;
@@ -1001,16 +1042,70 @@ function renderSummary(r, usage) {
       ${clarifHtml ? `<div class="section"><div class="section-title"><span class="s-icon" style="background:var(--accent-light);color:var(--accent)">💬</span>Suggested Clarifications</div>${clarifHtml}</div>` : ''}
 
       <div class="disclaimer"><strong>Disclaimer:</strong> This summary is for informational purposes only and is not legal advice. It is a general interpretation of contract language intended to highlight key provisions and potential issues. Always consult a qualified attorney before relying on or acting under any contract.</div>
-      <button class="copy-btn" onclick="copyText()">📋 Copy Summary</button>
+      <div class="actions-bar">
+        <button class="actions-btn primary" onclick="copyText()">📋 Copy to Clipboard</button>
+        <button class="actions-btn" onclick="printSummary()">🖨️ Print</button>
+        <button class="actions-btn" onclick="downloadPDF()">📄 Download PDF</button>
+        <button class="actions-btn" onclick="showSection('privacy')">🔒 Privacy Info</button>
+      </div>
     </div>`;
 }
 
 function copyText() {
   navigator.clipboard.writeText(document.getElementById('outputBody').innerText).then(() => {
-    const btn = document.querySelector('.copy-btn');
-    btn.textContent = '✅ Copied!';
-    setTimeout(() => btn.textContent = '📋 Copy Summary', 2000);
+    const btn = document.querySelector('.actions-btn.primary');
+    const original = btn.innerHTML;
+    btn.innerHTML = '✅ Copied!';
+    setTimeout(() => btn.innerHTML = original, 2000);
   });
+}
+
+function printSummary() {
+  const content = document.getElementById('outputBody').innerHTML;
+  const win = window.open('', '_blank');
+  win.document.write(`
+    <html><head><title>Contract Summary</title>
+    <style>
+      body{font-family:Georgia,serif;max-width:800px;margin:40px auto;padding:0 20px;color:#1A1714;line-height:1.7}
+      h1{font-size:22px;margin-bottom:4px}
+      h3{font-size:16px;margin:20px 0 8px}
+      .doc-badge{font-size:13px;color:#2B4A3F;margin-bottom:16px}
+      .plain-summary{background:#E6EFF5;border-left:4px solid #1A3D5C;padding:12px 16px;margin-bottom:16px;font-size:14px}
+      .exec-summary{background:#E8F0EE;border-left:4px solid #2B4A3F;padding:12px 16px;margin-bottom:16px}
+      .section{margin-bottom:18px}
+      .section-title{font-size:15px;font-weight:bold;border-bottom:1px solid #DDD9D0;padding-bottom:4px;margin-bottom:8px}
+      .risk-card{border-left:3px solid #8B3A2A;background:#F5EAE7;padding:8px 12px;margin-bottom:8px;border-radius:0 4px 4px 0}
+      .risk-title{font-weight:bold;font-size:13px}
+      .risk-body,.risk-consequence{font-size:12px;color:#6B6560;margin-top:3px}
+      .risk-redline{background:#fff;border:1px solid #DDD9D0;padding:6px 10px;margin-top:6px;font-size:12px;font-style:italic}
+      .disclaimer{font-size:11px;color:#9E9891;border-top:1px solid #DDD9D0;margin-top:20px;padding-top:12px}
+      .actions-bar,.gov-law-badge,.credit-badge,.trial-badge{display:none}
+      @media print{.actions-bar{display:none}}
+    </style></head><body>${content}</body></html>`);
+  win.document.close();
+  win.focus();
+  setTimeout(() => { win.print(); win.close(); }, 500);
+}
+
+function downloadPDF() {
+  const content = document.getElementById('outputBody').innerText;
+  const lines = content.split('\n').filter(l => l.trim());
+  let html = '<html><head><title>Contract Summary</title>';
+  html += '<style>body{font-family:Georgia,serif;max-width:780px;margin:40px auto;font-size:13px;line-height:1.7;color:#1A1714}</style>';
+  html += '</head><body>';
+  html += lines.map(line => `<p style="margin:4px 0">${line}</p>`).join('');
+  html += '</body></html>';
+
+  const blob = new Blob([html], { type: 'text/html' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'Contract-Summary.html';
+  a.click();
+  URL.revokeObjectURL(url);
+
+  // Inform user
+  setTimeout(() => alert('Your summary has been downloaded as "Contract-Summary.html". Open it in any browser and use File → Print → Save as PDF to create a PDF file.'), 100);
 }
 
 function esc(s) {
@@ -1020,16 +1115,4 @@ function esc(s) {
 // ── Auto-login
 window.addEventListener('load', () => {
   const saved = localStorage.getItem('cs_email');
-  if (saved) { currentEmail = saved; showApp(); }
-  const params = new URLSearchParams(window.location.search);
-  if (params.get('session_id') && params.get('email')) {
-    currentEmail = decodeURIComponent(params.get('email'));
-    localStorage.setItem('cs_email', currentEmail);
-    window.history.replaceState({}, '', '/');
-    showApp();
-    setTimeout(() => alert('🎉 Welcome! Your subscription is active. Enjoy your plan!'), 600);
-  }
-});
-</script>
-</body>
-</html>
+  if (saved) { curr
