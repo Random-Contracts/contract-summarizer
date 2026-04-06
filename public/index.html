@@ -1115,4 +1115,16 @@ function esc(s) {
 // ── Auto-login
 window.addEventListener('load', () => {
   const saved = localStorage.getItem('cs_email');
-  if (saved) { curr
+  if (saved) { currentEmail = saved; showApp(); }
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('session_id') && params.get('email')) {
+    currentEmail = decodeURIComponent(params.get('email'));
+    localStorage.setItem('cs_email', currentEmail);
+    window.history.replaceState({}, '', '/');
+    showApp();
+    setTimeout(() => alert('🎉 Welcome! Your subscription is active. Enjoy your plan!'), 600);
+  }
+});
+</script>
+</body>
+</html>
