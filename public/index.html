@@ -261,6 +261,7 @@ textarea.form-textarea{min-height:100px;resize:vertical}
       <button class="btn-nav" onclick="showSection('history')">History</button>
       <button class="btn-nav" onclick="showSection('pricing')">Plans</button>
       <button class="btn-nav" onclick="showSection('privacy')">Privacy</button>
+      <button class="btn-nav" id="manageSubBtn" style="display:none" onclick="manageBilling()">Manage Subscription</button>
       <button class="btn-nav" onclick="signOut()">Sign out</button>
     </div>
   </div>
@@ -598,6 +599,7 @@ function updateUsageUI(data) {
   if (data.subscribed) {
     badge.textContent = `✓ ${remaining} credits left`;
     badge.className = 'credit-badge';
+    document.getElementById('manageSubBtn').style.display = 'inline';
   } else if (data.plan === 'starter_trial') {
     badge.textContent = `${remaining} trial credits left`;
     badge.className = remaining <= 5 ? 'credit-badge warning' : 'credit-badge';
@@ -611,6 +613,7 @@ function updateUsageUI(data) {
     badge.textContent = `${remaining} of ${data.creditsLimit} free analyses left`;
     badge.className = remaining <= 1 ? 'credit-badge danger' : remaining <= 2 ? 'credit-badge warning' : 'credit-badge';
     trialBadge.style.display = 'none';
+    document.getElementById('manageSubBtn').style.display = 'none';
   }
 
   if (remaining <= 0) { upgradeBanner.style.display = 'flex'; analyzeBtn.disabled = true; }
@@ -646,6 +649,19 @@ function updatePricingDisplay(annual) {
     document.getElementById(id).textContent = annual ? 'Subscribe Annually' : 'Subscribe Monthly';
   });
   document.getElementById('starterTrialBtn').onclick = () => startTrialWithCard('starter_' + interval);
+}
+
+async function manageBilling() {
+  try {
+    const res = await fetch('/api/billing-portal', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: currentEmail }),
+    });
+    const data = await res.json();
+    if (data.url) window.location.href = data.url;
+    else alert('Could not open billing portal. Please try again.');
+  } catch(e) { alert('Error connecting to billing portal.'); }
 }
 
 async function startTrialWithCard(planKey) {
