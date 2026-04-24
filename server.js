@@ -48,34 +48,111 @@ function estimatePageCount(text) {
   return Math.ceil(text.length / 1500);
 }
 
-// ── In-memory stores
+// ── In-memory fallback store
 const userStore = {};
-const trialStore = {};
 const ipTrialStore = {};
 
-function getUser(email) {
+// ── Supabase user functions
+async function getUserFromDB(email) {
+  if (!supabase) return null;
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('email', email)
+      .single();
+    if (error || !data) return null;
+    return data;
+  } catch { return null; }
+}
+
+async function upsertUserToDB(userData) {
+  if (!supabase) return;
+  try {
+    await supabase.from('users').upsert({
+      email: userData.email,
+      plan: userData.plan,
+      credits_used: userData.creditsUsed,
+      credits_limit: userData.creditsLimit,
+      seats: userData.seats,
+      subscribed: userData.subscribed,
+      customer_id: userData.customerId,
+      trial_started: userData.trialStarted,
+      trial_expiry: userData.trialExpiry,
+      billing_cycle_start: userData.billingCycleStart,
+      had_trial: userData.hadTrial || false,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'email' });
+  } catch (e) {
+    console.error('upsertUserToDB error:', e.message);
+  }
+}
+
+function dbRowToUser(row) {
+  return {
+    email: row.email,
+    plan: row.plan || 'free',
+    creditsUsed: row.credits_used || 0,
+    creditsLimit: row.credits_limit || 3,
+    seats: row.seats || 1,
+    subscribed: row.subscribed || false,
+    customerId: row.customer_id || null,
+    trialStarted: row.trial_started || null,
+    trialExpiry: row.trial_expiry || null,
+    billingCycleStart: row.billing_cycle_start || new Date().toISOString(),
+    hadTrial: row.had_trial || false,
+  };
+}
+
+function defaultUser(email) {
+  return {
+    email,
+    plan: 'free',
+    creditsUsed: 0,
+    creditsLimit: 3,
+    seats: 1,
+    subscribed: false,
+    customerId: null,
+    trialStarted: null,
+    trialExpiry: null,
+    billingCycleStart: new Date().toISOString(),
+    hadTrial: false,
+  };
+}
+
+async function getUser(email) {
+  const dbUser = await getUserFromDB(email);
+  if (dbUser) {
+    const user = dbRowToUser(dbUser);
+    userStore[email] = user;
+    return user;
+  }
   if (!userStore[email]) {
-    userStore[email] = {
-      email, plan: 'free', creditsUsed: 0, creditsLimit: 3,
-      seats: 1, subscribed: false, customerId: null,
-      trialStarted: null, trialExpiry: null,
-      billingCycleStart: new Date(),
-    };
+    userStore[email] = defaultUser(email);
   }
   return userStore[email];
+}
+
+async function saveUser(user) {
+  userStore[user.email] = user;
+  await upsertUserToDB(user);
 }
 
 function checkBillingReset(user) {
   const now = new Date();
   const daysSince = (now - new Date(user.billingCycleStart)) / (1000 * 60 * 60 * 24);
   const resetDays = user.plan.includes('annual') ? 365 : 30;
-  if (daysSince >= resetDays) { user.creditsUsed = 0; user.billingCycleStart = now; }
+  if (daysSince >= resetDays) {
+    user.creditsUsed = 0;
+    user.billingCycleStart = now.toISOString();
+  }
 }
 
 function checkTrialExpiry(user) {
   if (user.plan === 'starter_trial' && user.trialExpiry) {
     if (new Date() > new Date(user.trialExpiry)) {
-      user.plan = 'free'; user.creditsLimit = 3;
+      user.plan = 'free';
+      user.creditsLimit = 3;
       user.creditsUsed = Math.min(user.creditsUsed, 3);
     }
   }
@@ -91,27 +168,28 @@ app.post('/api/start-trial', async (req, res) => {
   const { email } = req.body;
   if (!email) return res.status(400).json({ error: 'Email required.' });
   const ip = getClientIp(req);
-  const user = getUser(email);
+  const user = await getUser(email);
 
-  if (trialStore[email]) {
+  if (user.hadTrial) {
     return res.status(400).json({ error: 'trial_used', message: 'A free trial has already been used for this email address.' });
   }
   const ipCount = ipTrialStore[ip] || 0;
   if (ipCount >= 2) {
-    return res.status(400).json({ error: 'trial_limit', message: 'The maximum number of free trials from this location has been reached. Please subscribe to continue.' });
+    return res.status(400).json({ error: 'trial_limit', message: 'The maximum number of free trials from this location has been reached.' });
   }
 
   const trialExpiry = new Date();
   trialExpiry.setDate(trialExpiry.getDate() + 7);
 
   user.plan = 'starter_trial';
-  user.creditsLimit = 7;   // ← Capped at 7 analyses for trial
+  user.creditsLimit = 7;
   user.creditsUsed = 0;
-  user.trialStarted = new Date();
-  user.trialExpiry = trialExpiry;
+  user.trialStarted = new Date().toISOString();
+  user.trialExpiry = trialExpiry.toISOString();
+  user.hadTrial = true;
 
-  trialStore[email] = { started: new Date(), ip };
   ipTrialStore[ip] = ipCount + 1;
+  await saveUser(user);
 
   res.json({ message: 'Trial started', trialExpiry: trialExpiry.toISOString(), daysRemaining: 7 });
 });
@@ -121,7 +199,7 @@ app.post('/api/analyze', async (req, res) => {
   const { email, contractContent, contractType, outputDetail, perspective, estimatedPages } = req.body;
   if (!email || !contractContent) return res.status(400).json({ error: 'Email and contract content are required.' });
 
-  const user = getUser(email);
+  const user = await getUser(email);
   checkBillingReset(user);
   checkTrialExpiry(user);
 
@@ -130,9 +208,8 @@ app.post('/api/analyze', async (req, res) => {
   if (pageCount > PAGE_LIMIT) {
     return res.status(400).json({
       error: 'page_limit_exceeded',
-      message: `This document appears to be approximately ${pageCount} pages, which exceeds our ${PAGE_LIMIT}-page limit. For lengthy agreements we recommend uploading the core contract sections separately. Please paste the relevant sections into the text box instead.`,
-      pageCount,
-      limit: PAGE_LIMIT,
+      message: `This document appears to be approximately ${pageCount} pages, which exceeds our ${PAGE_LIMIT}-page limit. Please paste the relevant sections into the text box instead.`,
+      pageCount, limit: PAGE_LIMIT,
     });
   }
 
@@ -146,7 +223,7 @@ app.post('/api/analyze', async (req, res) => {
         ? 'You have used all your free analyses. Start a free trial or subscribe to continue.'
         : user.plan === 'starter_trial'
         ? 'You have used all your trial analyses. Please subscribe to continue.'
-        : 'You have used all your analyses for this billing period. Please upgrade or wait for your next billing cycle.',
+        : 'You have used all your analyses for this billing period.',
       creditsUsed: user.creditsUsed, creditsLimit: user.creditsLimit, plan: user.plan,
     });
   }
@@ -154,7 +231,7 @@ app.post('/api/analyze', async (req, res) => {
   if (creditsRemaining < creditCost) {
     return res.status(402).json({
       error: 'insufficient_credits',
-      message: `This document requires ${creditCost} credits (estimated ${pageCount} pages) but you only have ${creditsRemaining} credit${creditsRemaining === 1 ? '' : 's'} remaining.`,
+      message: `This document requires ${creditCost} credits but you only have ${creditsRemaining} remaining.`,
       creditsRemaining, creditCost, pageCount,
     });
   }
@@ -175,7 +252,6 @@ app.post('/api/analyze', async (req, res) => {
     ? `The user identifies this as a: ${contractType}.`
     : 'Identify the actual contract type from its content. Do NOT assume.';
 
-  // ── Enhanced system prompt with legal citations (Fix 3) ──
   const systemPrompt = `You are Contract Summarizer Agent, an expert legal summarization assistant.
 
 CRITICAL INSTRUCTIONS:
@@ -259,8 +335,8 @@ ${contractTypeHint}`;
     const result = JSON.parse(clean);
 
     user.creditsUsed += creditCost;
+    await saveUser(user);
 
-    // Save to Supabase history
     if (supabase) {
       try {
         await supabase.from('analyses').insert({
@@ -305,9 +381,7 @@ app.get('/api/history', async (req, res) => {
   const { email, search, type, limit = 20, offset = 0 } = req.query;
   if (!email) return res.status(400).json({ error: 'Email required.' });
 
-  if (!supabase) {
-    return res.json({ analyses: [], total: 0, historyEnabled: false });
-  }
+  if (!supabase) return res.json({ analyses: [], total: 0, historyEnabled: false });
 
   try {
     let query = supabase
@@ -317,12 +391,8 @@ app.get('/api/history', async (req, res) => {
       .order('created_at', { ascending: false })
       .range(Number(offset), Number(offset) + Number(limit) - 1);
 
-    if (search) {
-      query = query.or(`doc_title.ilike.%${search}%,contract_type.ilike.%${search}%,governing_law.ilike.%${search}%,parties.ilike.%${search}%`);
-    }
-    if (type && type !== 'all') {
-      query = query.ilike('contract_type', `%${type}%`);
-    }
+    if (search) query = query.or(`doc_title.ilike.%${search}%,contract_type.ilike.%${search}%,governing_law.ilike.%${search}%,parties.ilike.%${search}%`);
+    if (type && type !== 'all') query = query.ilike('contract_type', `%${type}%`);
 
     const { data, error, count } = await query;
     if (error) throw error;
@@ -338,7 +408,6 @@ app.get('/api/history/:id', async (req, res) => {
   const { email } = req.query;
   const { id } = req.params;
   if (!email || !id) return res.status(400).json({ error: 'Email and ID required.' });
-
   if (!supabase) return res.status(503).json({ error: 'History not enabled.' });
 
   try {
@@ -350,7 +419,6 @@ app.get('/api/history/:id', async (req, res) => {
       .single();
 
     if (error || !data) return res.status(404).json({ error: 'Analysis not found.' });
-
     res.json({ analysis: { ...data, result: JSON.parse(data.result) } });
   } catch (err) {
     res.status(500).json({ error: 'Fetch failed', detail: err.message });
@@ -376,14 +444,11 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
         text = pdfData.text;
         estimatedPages = pdfData.numpages || estimatePageCount(text);
         if (text.trim().split(/\s+/).length < 50) {
-          return res.status(400).json({ error: 'scanned_pdf', message: 'This appears to be a scanned PDF. Please copy and paste the text manually instead.' });
+          return res.status(400).json({ error: 'scanned_pdf', message: 'This appears to be a scanned PDF. Please paste the text manually instead.' });
         }
       } catch {
-        return res.status(400).json({ error: 'scanned_pdf', message: 'Could not extract text from this PDF. It may be a scanned document. Please paste the text manually instead.' });
+        return res.status(400).json({ error: 'scanned_pdf', message: 'Could not extract text from this PDF. Please paste the text manually instead.' });
       }
-    } else if (filename.endsWith('.xlsx') || filename.endsWith('.xls')) {
-      text = req.file.buffer.toString('utf-8');
-      estimatedPages = estimatePageCount(text);
     } else {
       text = req.file.buffer.toString('utf-8');
       estimatedPages = estimatePageCount(text);
@@ -396,7 +461,7 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
     if (estimatedPages > PAGE_LIMIT) {
       return res.status(400).json({
         error: 'page_limit_exceeded',
-        message: `This document appears to be approximately ${estimatedPages} pages, which exceeds our ${PAGE_LIMIT}-page limit. Please upload the relevant sections only, or paste the key contract text into the text box.`,
+        message: `This document appears to be approximately ${estimatedPages} pages, which exceeds our ${PAGE_LIMIT}-page limit.`,
         estimatedPages,
       });
     }
@@ -473,8 +538,25 @@ app.post('/api/create-checkout', async (req, res) => {
   }
 });
 
+// ── POST /api/billing-portal
+app.post('/api/billing-portal', async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: 'Email required.' });
+  const user = await getUser(email);
+  if (!user.customerId) return res.status(400).json({ error: 'No subscription found.' });
+  try {
+    const session = await stripe.billingPortal.sessions.create({
+      customer: user.customerId,
+      return_url: process.env.APP_URL,
+    });
+    res.json({ url: session.url });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── POST /api/webhook
-app.post('/api/webhook', express.raw({ type: 'application/json' }), (req, res) => {
+app.post('/api/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
   const sig = req.headers['stripe-signature'];
   let event;
   try {
@@ -488,33 +570,48 @@ app.post('/api/webhook', express.raw({ type: 'application/json' }), (req, res) =
     const email = session.customer_email || session.metadata?.email;
     const planKey = session.metadata?.planKey;
     if (email && planKey && PLANS[planKey]) {
-      const user = getUser(email);
+      const user = await getUser(email);
       const plan = PLANS[planKey];
-      user.plan = planKey; user.subscribed = true;
+      user.plan = planKey;
+      user.subscribed = true;
       user.customerId = session.customer;
       user.creditsLimit = plan.monthlyAnalyses;
-      user.creditsUsed = 0; user.seats = plan.seats;
-      user.billingCycleStart = new Date();
+      user.creditsUsed = 0;
+      user.seats = plan.seats;
+      user.billingCycleStart = new Date().toISOString();
+      await saveUser(user);
     }
   }
 
   if (event.type === 'customer.subscription.deleted') {
     const customerId = event.data.object.customer;
-    for (const user of Object.values(userStore)) {
-      if (user.customerId === customerId) {
-        user.plan = 'free'; user.subscribed = false;
-        user.creditsLimit = 3; user.creditsUsed = 0;
-      }
+    if (supabase) {
+      try {
+        const { data } = await supabase.from('users').select('*').eq('customer_id', customerId).single();
+        if (data) {
+          const user = dbRowToUser(data);
+          user.plan = 'free';
+          user.subscribed = false;
+          user.creditsLimit = 3;
+          user.creditsUsed = 0;
+          await saveUser(user);
+        }
+      } catch (e) { console.error('subscription.deleted error:', e.message); }
     }
   }
 
   if (event.type === 'invoice.payment_succeeded') {
     const customerId = event.data.object.customer;
-    for (const user of Object.values(userStore)) {
-      if (user.customerId === customerId && user.subscribed) {
-        user.creditsUsed = 0;
-        user.billingCycleStart = new Date();
-      }
+    if (supabase) {
+      try {
+        const { data } = await supabase.from('users').select('*').eq('customer_id', customerId).single();
+        if (data && data.subscribed) {
+          const user = dbRowToUser(data);
+          user.creditsUsed = 0;
+          user.billingCycleStart = new Date().toISOString();
+          await saveUser(user);
+        }
+      } catch (e) { console.error('invoice.payment_succeeded error:', e.message); }
     }
   }
 
@@ -522,12 +619,13 @@ app.post('/api/webhook', express.raw({ type: 'application/json' }), (req, res) =
 });
 
 // ── GET /api/status
-app.get('/api/status', (req, res) => {
+app.get('/api/status', async (req, res) => {
   const { email } = req.query;
   if (!email) return res.status(400).json({ error: 'Email required.' });
-  const user = getUser(email);
+  const user = await getUser(email);
   checkBillingReset(user);
   checkTrialExpiry(user);
+  await saveUser(user);
   const trialDaysRemaining = user.trialExpiry
     ? Math.max(0, Math.ceil((new Date(user.trialExpiry) - new Date()) / (1000 * 60 * 60 * 24)))
     : null;
@@ -535,38 +633,25 @@ app.get('/api/status', (req, res) => {
     plan: user.plan, subscribed: user.subscribed,
     creditsUsed: user.creditsUsed, creditsLimit: user.creditsLimit,
     creditsRemaining: user.creditsLimit - user.creditsUsed,
-    seats: user.seats, trialDaysRemaining, hadTrial: !!trialStore[email],
+    seats: user.seats, trialDaysRemaining, hadTrial: user.hadTrial,
   });
 });
 
 // ── GET /api/reset-test
-app.get('/api/reset-test', (req, res) => {
+app.get('/api/reset-test', async (req, res) => {
   const { email } = req.query;
   if (!email) return res.status(400).json({ error: 'Email required.' });
-  if (userStore[email]) {
-    userStore[email].creditsUsed = 0; userStore[email].plan = 'free';
-    userStore[email].creditsLimit = 3; userStore[email].subscribed = false;
-    userStore[email].trialExpiry = null; userStore[email].trialStarted = null;
-  }
-  delete trialStore[email];
+  const user = await getUser(email);
+  user.creditsUsed = 0;
+  user.plan = 'free';
+  user.creditsLimit = 3;
+  user.subscribed = false;
+  user.trialExpiry = null;
+  user.trialStarted = null;
+  user.hadTrial = false;
+  user.customerId = null;
+  await saveUser(user);
   res.json({ message: 'Reset successful', email });
-});
-
-// ── POST /api/billing-portal
-app.post('/api/billing-portal', async (req, res) => {
-  const { email } = req.body;
-  if (!email) return res.status(400).json({ error: 'Email required.' });
-  const user = getUser(email);
-  if (!user.customerId) return res.status(400).json({ error: 'No subscription found.' });
-  try {
-    const session = await stripe.billingPortal.sessions.create({
-      customer: user.customerId,
-      return_url: process.env.APP_URL,
-    });
-    res.json({ url: session.url });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
 });
 
 app.get('*', (req, res) => {
