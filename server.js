@@ -552,6 +552,23 @@ app.get('/api/reset-test', (req, res) => {
   res.json({ message: 'Reset successful', email });
 });
 
+// ── POST /api/billing-portal
+app.post('/api/billing-portal', async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: 'Email required.' });
+  const user = getUser(email);
+  if (!user.customerId) return res.status(400).json({ error: 'No subscription found.' });
+  try {
+    const session = await stripe.billingPortal.sessions.create({
+      customer: user.customerId,
+      return_url: process.env.APP_URL,
+    });
+    res.json({ url: session.url });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
