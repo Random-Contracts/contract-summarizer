@@ -233,7 +233,7 @@ textarea.form-textarea{min-height:100px;resize:vertical}
     <h1>Contract Summarizer</h1>
     <p>Plain-English contract analysis. Enter your email to get started — no password needed.</p>
     <div class="gate-features">
-      <li>3 free analyses — no credit card required</li>
+      <li>5 free analyses — no credit card required</li>
       <li>7-day free trial available — cancel anytime</li>
       <li>Upload Word docs, digital PDFs, or Excel files</li>
       <li>Red flags, risks, redline suggestions & plain-English summaries</li>
@@ -308,17 +308,24 @@ textarea.form-textarea{min-height:100px;resize:vertical}
               <div><div class="opt-label">Contract Type</div><div class="opt-sub">Tailor the analysis</div></div>
               <select class="opt-select" id="contractType">
                 <option value="auto">Auto-detect</option>
-                <option value="service">Service Agreement</option>
                 <option value="employment">Employment</option>
-                <option value="nda">NDA</option>
+                <option value="contractor">Independent Contractor</option>
+                <option value="nda">NDA / Confidentiality</option>
+                <option value="msa">Master Service Agreement (MSA)</option>
+                <option value="sow">Statement of Work (SOW)</option>
+                <option value="service">Service Agreement</option>
                 <option value="saas">SaaS / Software</option>
-                <option value="realestate">Real Estate</option>
-                <option value="lease">Lease</option>
+                <option value="realestate">Real Estate Purchase</option>
+                <option value="lease">Lease (Commercial / Equipment)</option>
                 <option value="partnership">Partnership / JV</option>
-                <option value="purchase">Purchase / Sales</option>
-                <option value="settlement">Settlement</option>
+                <option value="operating">Operating / Shareholder Agreement</option>
+                <option value="purchase">Purchase / Sales Agreement</option>
+                <option value="vendor">Vendor / Supplier Agreement</option>
+                <option value="settlement">Settlement Agreement</option>
                 <option value="franchise">Franchise</option>
+                <option value="licensing">Licensing Agreement</option>
                 <option value="loan">Loan / Finance</option>
+                <option value="insurance">Insurance Policy</option>
                 <option value="other">Other</option>
               </select>
             </div>
@@ -386,7 +393,7 @@ textarea.form-textarea{min-height:100px;resize:vertical}
   <div class="main" id="pricingMain" style="display:none">
     <div class="pricing-page">
       <h2>Choose Your Plan</h2>
-      <p class="subtitle">All plans include Word, PDF & Excel upload, red flag detection, redline suggestions, and plain-English summaries.</p>
+      <p class="subtitle">All plans include Word, PDF & Excel upload, red flag detection, redline suggestions, legal citations, and plain-English summaries. Start with 5 free analyses — no credit card required.</p>
       <div class="billing-toggle">
         <span>Monthly</span>
         <label class="toggle-track">
