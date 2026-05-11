@@ -1082,3 +1082,4 @@ app.get('*', (req, res) => {
 });
 
 app.listen(PORT, () => console.log(`Contract Summarizer running on port ${PORT}`));
+
