@@ -156,7 +156,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-const supabaseAdmin = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
+const supabaseAdmin = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
 
 // Plan definitions
 const PLANS = {
