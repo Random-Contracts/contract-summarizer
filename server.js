@@ -22,7 +22,7 @@ app.post('/webhook', express.raw({ type: 'application/json' }), async (req, res)
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
 
-  const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
+  const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
 
   switch (event.type) {
     case 'checkout.session.completed': {
@@ -156,7 +156,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-const supabaseAdmin = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
+const supabaseAdmin = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
 
 // Plan definitions
 const PLANS = {
