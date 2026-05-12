@@ -462,6 +462,7 @@ app.post('/enterprise-contact', async (req, res) => {
 });
 
 // Main contract analysis endpoint
+app.post(['/analyze', '/api/upload'],
 app.post('/analyze', upload.single('contract'), async (req, res) => {
   const email = req.headers['x-user-email'];
   if (!email) return res.status(400).json({ error: 'Email required' });
