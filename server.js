@@ -756,6 +756,14 @@ ${contractContent}`;
   }
 });
 
+// Test reset - remove before launch
+app.get('/api/reset-test', async (req, res) => {
+  const { email } = req.query;
+  if (!email) return res.status(400).json({ error: 'Email required' });
+  const { error } = await supabaseAdmin.from('users').update({ analyses_used: 0, analyses_limit: 3, plan: 'trial' }).eq('email', email);
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ success: true, message: `Reset ${email} to 3 trial analyses` });
+});
 // Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
