@@ -805,7 +805,7 @@ function clearFile() {
 async function analyzeContract() {
   const text = document.getElementById('contractText').value.trim();
   const hasFile = uploadedFileContent && uploadedFileName;
-  if (!text && !hasFile) { alert('Please upload a contract file or paste contract text first.'); return; }
+  if (!text && !uploadedFileName) { alert('Please upload a contract file or paste contract text first.'); return; }
 
   if (currentUsage && currentUsage.subscribed) {
     const estimatedCreditCost = hasFile && uploadedEstimatedPages
