@@ -51,8 +51,8 @@ app.post('/webhook', express.raw({ type: 'application/json' }), async (req, res)
               billing_cycle: billingCycle,
               stripe_subscription_id: subscriptionId,
               stripe_customer_id: session.customer,
-              analyses_used: 0,
-              analyses_limit: plan.analyses,
+              credits_used: 0,
+              credits_limit: plan.analyses,
               seats: plan.seats,
               period_start: periodStart.toISOString(),
               period_end: periodEnd.toISOString(),
@@ -90,8 +90,8 @@ app.post('/webhook', express.raw({ type: 'application/json' }), async (req, res)
         const { error } = await supabase
           .from('users')
           .update({
-            analyses_used: 0,
-            analyses_limit: plan ? plan.analyses : userData.analyses_limit,
+            credits_used: 0,
+            credits_limit: plan ? plan.analyses : userData.credits_limit,
             period_start: periodStart.toISOString(),
             period_end: periodEnd.toISOString(),
             updated_at: new Date().toISOString()
@@ -113,7 +113,7 @@ app.post('/webhook', express.raw({ type: 'application/json' }), async (req, res)
         .update({
           plan: 'free',
           stripe_subscription_id: null,
-          analyses_limit: 0,
+          credits_limit: 0,
           updated_at: new Date().toISOString()
         })
         .eq('stripe_customer_id', customerId);
@@ -237,8 +237,8 @@ app.post('/auth/verify', async (req, res) => {
       await supabaseAdmin.from('users').insert({
         email,
         plan: 'trial',
-        analyses_used: 0,
-        analyses_limit: 3,
+        credits_used: 0,
+        credits_limit: 3,
         seats: 1,
         trial_used: false,
         created_at: new Date().toISOString(),
@@ -271,8 +271,8 @@ app.get('/api/status', async (req, res) => {
       email: user.email,
       plan: user.plan,
       billing_cycle: user.billing_cycle,
-      analyses_used: user.analyses_used,
-      analyses_limit: user.analyses_limit,
+      credits_used: user.credits_used,
+      credits_limit: user.credits_limit,
       seats: user.seats,
       period_end: user.period_end,
       trial_used: user.trial_used,
@@ -302,8 +302,8 @@ app.get('/user/status', async (req, res) => {
       email: user.email,
       plan: user.plan,
       billing_cycle: user.billing_cycle,
-      analyses_used: user.analyses_used,
-      analyses_limit: user.analyses_limit,
+      credits_used: user.credits_used,
+      credits_limit: user.credits_limit,
       seats: user.seats,
       period_end: user.period_end,
       trial_used: user.trial_used,
@@ -593,14 +593,14 @@ app.post('/api/analyze', async (req, res) => {
 
     if (userError || !user) return res.status(404).json({ error: 'User not found' });
 
-    const remainingAnalyses = user.analyses_limit - user.analyses_used;
+    const remainingAnalyses = user.credits_limit - user.credits_used;
     if (remainingAnalyses <= 0) {
       return res.status(403).json({
         error: 'Analysis limit reached',
         code: 'LIMIT_REACHED',
         plan: user.plan,
-        analyses_used: user.analyses_used,
-        analyses_limit: user.analyses_limit
+        credits_used: user.credits_used,
+        credits_limit: user.credits_limit
       });
     }
 
@@ -616,7 +616,7 @@ app.post('/api/analyze', async (req, res) => {
       });
     }
 
-    const warningThreshold = Math.ceil(user.analyses_limit * 0.1);
+    const warningThreshold = Math.ceil(user.credits_limit * 0.1);
     const willRemainAfter = remainingAnalyses - creditCost;
     const docType = contractType || 'auto-detect';
 
@@ -716,7 +716,7 @@ ${contractContent}`;
     await supabaseAdmin
       .from('users')
       .update({
-        analyses_used: user.analyses_used + creditCost,
+        credits_used: user.credits_used + creditCost,
         updated_at: new Date().toISOString()
       })
       .eq('email', email);
@@ -739,8 +739,8 @@ ${contractContent}`;
       filename: filename || 'Contract Analysis',
       pageCount,
       creditCost,
-      analysesUsed: user.analyses_used + creditCost,
-      analysesLimit: user.analyses_limit,
+      analysesUsed: user.credits_used + creditCost,
+      analysesLimit: user.credits_limit,
       analysesRemaining: remainingAnalyses - creditCost
     };
 
@@ -756,14 +756,6 @@ ${contractContent}`;
   }
 });
 
-// Test reset - remove before launch
-app.get('/api/reset-test', async (req, res) => {
-  const { email } = req.query;
-  if (!email) return res.status(400).json({ error: 'Email required' });
-  const { error } = await supabaseAdmin.from('users').update({ analyses_used: 0, analyses_limit: 3, plan: 'trial' }).eq('email', email);
-  if (error) return res.status(500).json({ error: error.message });
-  res.json({ success: true, message: `Reset ${email} to 3 trial analyses` });
-});
 // Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
