@@ -277,7 +277,9 @@ app.get('/api/status', async (req, res) => {
       period_end: user.period_end,
       trial_used: user.trial_used,
       subscribed: user.plan !== 'trial' && user.plan !== 'free'
-    });
+      creditsRemaining: user.credits_limit - user.credits_used,
+      creditsLimit: user.credits_limit,
+      });
   } catch (err) {
     console.error('User status error:', err);
     res.status(500).json({ error: 'Failed to get user status' });
@@ -308,7 +310,9 @@ app.get('/user/status', async (req, res) => {
       period_end: user.period_end,
       trial_used: user.trial_used,
       subscribed: user.plan !== 'trial' && user.plan !== 'free'
-    });
+      creditsRemaining: user.credits_limit - user.credits_used,
+      creditsLimit: user.credits_limit,
+      });
   } catch (err) {
     console.error('User status error:', err);
     res.status(500).json({ error: 'Failed to get user status' });
