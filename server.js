@@ -172,7 +172,7 @@ function getDocumentCreditCost(pageCount) {
   return 3;
 }
 
-// Multer configuration
+// Multer configuration - field name 'file' matches index.html formData.append('file', file)
 const storage = multer.memoryStorage();
 const upload = multer({
   storage,
@@ -253,9 +253,9 @@ app.post('/auth/verify', async (req, res) => {
   }
 });
 
-// Get user status
-app.get('/user/status', async (req, res) => {
-  const email = req.headers['x-user-email'];
+// Get user status - supports header, query param, or body
+app.get('/api/status', async (req, res) => {
+  const email = req.headers['x-user-email'] || req.query.email;
   if (!email) return res.status(400).json({ error: 'Email required' });
 
   try {
@@ -275,7 +275,39 @@ app.get('/user/status', async (req, res) => {
       analyses_limit: user.analyses_limit,
       seats: user.seats,
       period_end: user.period_end,
-      trial_used: user.trial_used
+      trial_used: user.trial_used,
+      subscribed: user.plan !== 'trial' && user.plan !== 'free'
+    });
+  } catch (err) {
+    console.error('User status error:', err);
+    res.status(500).json({ error: 'Failed to get user status' });
+  }
+});
+
+// Backward compat
+app.get('/user/status', async (req, res) => {
+  const email = req.headers['x-user-email'] || req.query.email;
+  if (!email) return res.status(400).json({ error: 'Email required' });
+
+  try {
+    const { data: user, error } = await supabaseAdmin
+      .from('users')
+      .select('*')
+      .eq('email', email)
+      .single();
+
+    if (error || !user) return res.status(404).json({ error: 'User not found' });
+
+    res.json({
+      email: user.email,
+      plan: user.plan,
+      billing_cycle: user.billing_cycle,
+      analyses_used: user.analyses_used,
+      analyses_limit: user.analyses_limit,
+      seats: user.seats,
+      period_end: user.period_end,
+      trial_used: user.trial_used,
+      subscribed: user.plan !== 'trial' && user.plan !== 'free'
     });
   } catch (err) {
     console.error('User status error:', err);
@@ -285,7 +317,7 @@ app.get('/user/status', async (req, res) => {
 
 // Get contract history
 app.get('/history', async (req, res) => {
-  const email = req.headers['x-user-email'];
+  const email = req.headers['x-user-email'] || req.query.email;
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 10;
   const search = req.query.search || '';
@@ -317,7 +349,7 @@ app.get('/history', async (req, res) => {
 
 // Get single contract
 app.get('/history/:id', async (req, res) => {
-  const email = req.headers['x-user-email'];
+  const email = req.headers['x-user-email'] || req.query.email;
   const { id } = req.params;
 
   if (!email) return res.status(400).json({ error: 'Email required' });
@@ -341,7 +373,7 @@ app.get('/history/:id', async (req, res) => {
 
 // Delete contract
 app.delete('/history/:id', async (req, res) => {
-  const email = req.headers['x-user-email'];
+  const email = req.headers['x-user-email'] || req.query.email;
   const { id } = req.params;
 
   if (!email) return res.status(400).json({ error: 'Email required' });
@@ -361,8 +393,8 @@ app.delete('/history/:id', async (req, res) => {
   }
 });
 
-// Create Stripe checkout session
-app.post('/create-checkout-session', async (req, res) => {
+// Stripe checkout
+app.post(['/api/create-checkout', '/create-checkout-session'], async (req, res) => {
   const { email, planId, billingCycle } = req.body;
 
   if (!email || !planId) return res.status(400).json({ error: 'Email and plan required' });
@@ -372,16 +404,16 @@ app.post('/create-checkout-session', async (req, res) => {
 
   const priceIds = {
     starter: {
-      monthly: process.env.STRIPE_STARTER_MONTHLY_PRICE_ID,
-      annual: process.env.STRIPE_STARTER_ANNUAL_PRICE_ID
+      monthly: process.env.STRIPE_STARTER_MONTHLY_ID,
+      annual: process.env.STRIPE_STARTER_ANNUAL_ID
     },
     pro: {
-      monthly: process.env.STRIPE_PRO_MONTHLY_PRICE_ID,
-      annual: process.env.STRIPE_PRO_ANNUAL_PRICE_ID
+      monthly: process.env.STRIPE_PRO_MONTHLY_ID,
+      annual: process.env.STRIPE_PRO_ANNUAL_ID
     },
     team: {
-      monthly: process.env.STRIPE_TEAM_MONTHLY_PRICE_ID,
-      annual: process.env.STRIPE_TEAM_ANNUAL_PRICE_ID
+      monthly: process.env.STRIPE_TEAM_MONTHLY_ID,
+      annual: process.env.STRIPE_TEAM_ANNUAL_ID
     }
   };
 
@@ -396,7 +428,7 @@ app.post('/create-checkout-session', async (req, res) => {
       line_items: [{ price: priceId, quantity: 1 }],
       metadata: { email, planId, billingCycle: billingCycle || 'monthly' },
       success_url: `${process.env.APP_URL}/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.APP_URL}/cancel`
+      cancel_url: `${process.env.APP_URL}`
     });
 
     res.json({ url: session.url });
@@ -406,8 +438,8 @@ app.post('/create-checkout-session', async (req, res) => {
   }
 });
 
-// Create billing portal session
-app.post('/create-portal-session', async (req, res) => {
+// Billing portal
+app.post('/api/billing-portal', async (req, res) => {
   const { email } = req.body;
   if (!email) return res.status(400).json({ error: 'Email required' });
 
@@ -434,8 +466,8 @@ app.post('/create-portal-session', async (req, res) => {
   }
 });
 
-// Enterprise contact form
-app.post('/enterprise-contact', async (req, res) => {
+// Enterprise contact
+app.post('/api/enterprise-contact', async (req, res) => {
   const { name, email, company, phone, message } = req.body;
   if (!name || !email || !company) {
     return res.status(400).json({ error: 'Name, email, and company required' });
@@ -461,11 +493,96 @@ app.post('/enterprise-contact', async (req, res) => {
   }
 });
 
-// Main contract analysis endpoint
-
-app.post(['/analyze', '/api/upload', '/api/analyze'], upload.single('file'), async (req, res) => {
+// File upload - extracts text and returns it to frontend
+app.post('/api/upload', upload.single('file'), async (req, res) => {
   const email = req.headers['x-user-email'] || req.body?.email;
   if (!email) return res.status(400).json({ error: 'Email required' });
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+
+  try {
+    let contractText = '';
+    let pageCount = 1;
+    const mimeType = req.file.mimetype;
+    const filename = req.file.originalname;
+
+    if (mimeType === 'application/pdf') {
+      const pdfParse = require('pdf-parse');
+      const pdfData = await pdfParse(req.file.buffer);
+      contractText = pdfData.text;
+      pageCount = pdfData.numpages;
+
+      if (!contractText || contractText.trim().length < 100) {
+        return res.status(422).json({
+          error: 'SCANNED_PDF',
+          message: 'This appears to be a scanned PDF. Please upload a text-based PDF or Word document.'
+        });
+      }
+
+      if (pageCount > 150) {
+        return res.status(422).json({
+          error: 'TOO_MANY_PAGES',
+          message: `Document has ${pageCount} pages. Maximum is 150 pages.`
+        });
+      }
+
+    } else if (
+      mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+      mimeType === 'application/msword'
+    ) {
+      const result = await mammoth.extractRawText({ buffer: req.file.buffer });
+      contractText = result.value;
+      pageCount = Math.ceil(contractText.length / 3000);
+
+      if (pageCount > 150) {
+        return res.status(422).json({
+          error: 'TOO_MANY_PAGES',
+          message: `Document is approximately ${pageCount} pages. Maximum is 150 pages.`
+        });
+      }
+
+    } else if (
+      mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+      mimeType === 'application/vnd.ms-excel'
+    ) {
+      const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
+      const sheets = workbook.SheetNames.map(name => {
+        const sheet = workbook.Sheets[name];
+        return `Sheet: ${name}\n${XLSX.utils.sheet_to_csv(sheet)}`;
+      });
+      contractText = sheets.join('\n\n');
+      pageCount = 1;
+    }
+
+    if (!contractText || contractText.trim().length < 50) {
+      return res.status(422).json({ error: 'Could not extract text from file' });
+    }
+
+    const creditCost = getDocumentCreditCost(pageCount);
+
+    res.json({
+      success: true,
+      text: contractText,
+      filename,
+      estimatedPages: pageCount,
+      creditCost
+    });
+
+  } catch (err) {
+    console.error('Upload error:', err);
+    res.status(500).json({ error: err.message || 'Failed to process file' });
+  }
+});
+
+// Main analysis endpoint
+app.post('/api/analyze', async (req, res) => {
+  const email = req.headers['x-user-email'] || req.body?.email;
+  if (!email) return res.status(400).json({ error: 'Email required' });
+
+  const { contractContent, estimatedPages, contractType, filename } = req.body;
+
+  if (!contractContent || contractContent.trim().length < 50) {
+    return res.status(400).json({ error: 'No contract provided' });
+  }
 
   try {
     const { data: user, error: userError } = await supabaseAdmin
@@ -487,81 +604,7 @@ app.post(['/analyze', '/api/upload', '/api/analyze'], upload.single('file'), asy
       });
     }
 
-    let contractText = '';
-    let filename = '';
-    let pageCount = 1;
-
-    if (req.file) {
-      filename = req.file.originalname;
-      const mimeType = req.file.mimetype;
-
-      if (mimeType === 'application/pdf') {
-        const pdfParse = require('pdf-parse');
-        try {
-          const pdfData = await pdfParse(req.file.buffer);
-          contractText = pdfData.text;
-          pageCount = pdfData.numpages;
-
-          if (!contractText || contractText.trim().length < 100) {
-            return res.status(422).json({
-              error: 'Scanned PDF detected',
-              code: 'SCANNED_PDF',
-              message: 'This appears to be a scanned PDF. Please upload a text-based PDF or Word document.'
-            });
-          }
-
-          if (pageCount > 150) {
-            return res.status(422).json({
-              error: 'Document too large',
-              code: 'TOO_MANY_PAGES',
-              message: `Document has ${pageCount} pages. Maximum is 150 pages.`
-            });
-          }
-        } catch (pdfErr) {
-          console.error('PDF parse error:', pdfErr);
-          return res.status(422).json({ error: 'Failed to parse PDF' });
-        }
-
-      } else if (
-        mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
-        mimeType === 'application/msword'
-      ) {
-        const result = await mammoth.extractRawText({ buffer: req.file.buffer });
-        contractText = result.value;
-        pageCount = Math.ceil(contractText.length / 3000);
-
-        if (pageCount > 150) {
-          return res.status(422).json({
-            error: 'Document too large',
-            code: 'TOO_MANY_PAGES',
-            message: `Document is approximately ${pageCount} pages. Maximum is 150 pages.`
-          });
-        }
-
-      } else if (
-        mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
-        mimeType === 'application/vnd.ms-excel'
-      ) {
-        const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
-        const sheets = workbook.SheetNames.map(name => {
-          const sheet = workbook.Sheets[name];
-          return `Sheet: ${name}\n${XLSX.utils.sheet_to_csv(sheet)}`;
-        });
-        contractText = sheets.join('\n\n');
-        pageCount = 1;
-      }
-    } else if (req.body.contractText) {
-      contractText = req.body.contractText;
-      filename = req.body.filename || 'Pasted Contract';
-      pageCount = Math.ceil(contractText.length / 3000);
-    } else {
-      return res.status(400).json({ error: 'No contract provided' });
-    }
-
-    if (!contractText || contractText.trim().length < 50) {
-      return res.status(422).json({ error: 'Contract text is too short or empty' });
-    }
-
+    const pageCount = estimatedPages || Math.ceil(contractContent.length / 3000);
     const creditCost = getDocumentCreditCost(pageCount);
 
     if (creditCost > remainingAnalyses) {
@@ -575,7 +618,7 @@ app.post(['/analyze', '/api/upload', '/api/analyze'], upload.single('file'), asy
 
     const warningThreshold = Math.ceil(user.analyses_limit * 0.1);
     const willRemainAfter = remainingAnalyses - creditCost;
-    const contractType = req.body.contractType || 'auto-detect';
+    const docType = contractType || 'auto-detect';
 
     const systemPrompt = `You are an expert contract attorney with 30 years of experience analyzing commercial contracts. You provide thorough, practical analysis that helps business people and attorneys understand contracts quickly and completely.
 
@@ -659,7 +702,7 @@ Prioritized list of:
 
 ---
 CONTRACT TEXT TO ANALYZE:
-${contractText}`;
+${contractContent}`;
 
     const message = await anthropic.messages.create({
       model: 'claude-opus-4-5',
@@ -682,18 +725,18 @@ ${contractText}`;
       .from('contracts')
       .insert({
         user_email: email,
-        filename,
+        filename: filename || 'Contract Analysis',
         analysis,
         page_count: pageCount,
         credit_cost: creditCost,
-        contract_type: contractType,
+        contract_type: docType,
         created_at: new Date().toISOString()
       });
 
     const responseData = {
       success: true,
       analysis,
-      filename,
+      filename: filename || 'Contract Analysis',
       pageCount,
       creditCost,
       analysesUsed: user.analyses_used + creditCost,
