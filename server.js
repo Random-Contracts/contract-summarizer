@@ -193,6 +193,55 @@ const upload = multer({
   }
 });
 
+// Auth: register/create user (no magic link — just email collection for free trial)
+app.post('/auth/register', async (req, res) => {
+  const { email } = req.body;
+  if (!email || !email.includes('@')) return res.status(400).json({ error: 'Valid email required' });
+
+  try {
+    const { data: existingUser } = await supabaseAdmin
+      .from('users')
+      .select('*')
+      .eq('email', email)
+      .single();
+
+    if (!existingUser) {
+      // Brand new user — create with 5 free trial analyses
+      const { error } = await supabaseAdmin.from('users').insert({
+        email,
+        plan: 'trial',
+        credits_used: 0,
+        credits_limit: 5,
+        seats: 1,
+        trial_used: false,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      });
+      if (error) throw error;
+      console.log(`New user created: ${email}`);
+    } else if (existingUser.plan === 'free') {
+      // Legacy user — migrate to trial
+      await supabaseAdmin.from('users')
+        .update({ plan: 'trial', updated_at: new Date().toISOString() })
+        .eq('email', email);
+    }
+
+    // Return current user status
+    const { data: user } = await supabaseAdmin.from('users').select('*').eq('email', email).single();
+    res.json({
+      success: true,
+      email: user.email,
+      plan: user.plan,
+      creditsRemaining: user.credits_limit - user.credits_used,
+      creditsLimit: user.credits_limit,
+      subscribed: user.plan !== 'trial' && user.plan !== 'free'
+    });
+  } catch (err) {
+    console.error('Register error:', err);
+    res.status(500).json({ error: 'Failed to register user' });
+  }
+});
+
 // Auth: send magic link
 app.post('/auth/send-link', async (req, res) => {
   const { email } = req.body;
