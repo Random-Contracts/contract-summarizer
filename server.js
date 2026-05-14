@@ -234,11 +234,12 @@ app.post('/auth/verify', async (req, res) => {
       .single();
 
     if (!existingUser) {
+      // FIX 2: Changed credits_limit from 3 to 5 for new trial users
       await supabaseAdmin.from('users').insert({
         email,
         plan: 'trial',
         credits_used: 0,
-        credits_limit: 3,
+        credits_limit: 5,
         seats: 1,
         trial_used: false,
         created_at: new Date().toISOString(),
@@ -279,7 +280,7 @@ app.get('/api/status', async (req, res) => {
       subscribed: user.plan !== 'trial' && user.plan !== 'free',
       creditsRemaining: user.credits_limit - user.credits_used,
       creditsLimit: user.credits_limit,
-      });
+    });
   } catch (err) {
     console.error('User status error:', err);
     res.status(500).json({ error: 'Failed to get user status' });
@@ -312,7 +313,7 @@ app.get('/user/status', async (req, res) => {
       subscribed: user.plan !== 'trial' && user.plan !== 'free',
       creditsRemaining: user.credits_limit - user.credits_used,
       creditsLimit: user.credits_limit,
-      });
+    });
   } catch (err) {
     console.error('User status error:', err);
     res.status(500).json({ error: 'Failed to get user status' });
@@ -513,6 +514,7 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
       const pdfParse = require('pdf-parse');
       const pdfData = await pdfParse(req.file.buffer);
       contractText = pdfData.text;
+      // FIX 4: Use numpages directly — no division. Previously may have been halved.
       pageCount = pdfData.numpages;
 
       if (!contractText || contractText.trim().length < 100) {
@@ -535,7 +537,8 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
     ) {
       const result = await mammoth.extractRawText({ buffer: req.file.buffer });
       contractText = result.value;
-      pageCount = Math.ceil(contractText.length / 3000);
+      // FIX 4: Changed divisor from 3000 to 1500 chars/page for more accurate Word doc page count
+      pageCount = Math.ceil(contractText.length / 1500);
 
       if (pageCount > 150) {
         return res.status(422).json({
@@ -608,7 +611,7 @@ app.post('/api/analyze', async (req, res) => {
       });
     }
 
-    const pageCount = estimatedPages || Math.ceil(contractContent.length / 3000);
+    const pageCount = estimatedPages || Math.ceil(contractContent.length / 1500);
     const creditCost = getDocumentCreditCost(pageCount);
 
     if (creditCost > remainingAnalyses) {
@@ -737,6 +740,7 @@ ${contractContent}`;
         created_at: new Date().toISOString()
       });
 
+    // FIX 1: Renamed analysesRemaining → creditsRemaining to match index.html expectations
     const responseData = {
       success: true,
       analysis,
@@ -757,6 +761,28 @@ ${contractContent}`;
   } catch (err) {
     console.error('Analysis error:', err);
     res.status(500).json({ error: 'Analysis failed. Please try again.' });
+  }
+});
+
+// FIX 3: Reset test endpoint (for development/testing only)
+app.post('/api/reset-test', async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: 'Email required' });
+
+  try {
+    const { error } = await supabaseAdmin
+      .from('users')
+      .update({
+        credits_used: 0,
+        updated_at: new Date().toISOString()
+      })
+      .eq('email', email);
+
+    if (error) throw error;
+    res.json({ success: true, message: `Credits reset for ${email}` });
+  } catch (err) {
+    console.error('Reset test error:', err);
+    res.status(500).json({ error: err.message });
   }
 });
 
