@@ -56,8 +56,7 @@ app.post('/webhook', express.raw({ type: 'application/json' }), async (req, res)
               seats: plan.seats,
               period_start: periodStart.toISOString(),
               period_end: periodEnd.toISOString(),
-              trial_used: true,
-              updated_at: new Date().toISOString()
+              trial_used: true
             }, { onConflict: 'email' });
 
           if (error) console.error('Error updating user after checkout:', error);
@@ -93,8 +92,7 @@ app.post('/webhook', express.raw({ type: 'application/json' }), async (req, res)
             credits_used: 0,
             credits_limit: plan ? plan.analyses : userData.credits_limit,
             period_start: periodStart.toISOString(),
-            period_end: periodEnd.toISOString(),
-            updated_at: new Date().toISOString()
+            period_end: periodEnd.toISOString()
           })
           .eq('stripe_customer_id', customerId);
 
@@ -113,8 +111,7 @@ app.post('/webhook', express.raw({ type: 'application/json' }), async (req, res)
         .update({
           plan: 'free',
           stripe_subscription_id: null,
-          credits_limit: 0,
-          updated_at: new Date().toISOString()
+          credits_limit: 0
         })
         .eq('stripe_customer_id', customerId);
 
@@ -132,8 +129,7 @@ app.post('/webhook', express.raw({ type: 'application/json' }), async (req, res)
         const { error } = await supabase
           .from('users')
           .update({
-            subscription_status: status,
-            updated_at: new Date().toISOString()
+            subscription_status: status
           })
           .eq('stripe_customer_id', customerId);
 
@@ -213,16 +209,14 @@ app.post('/auth/register', async (req, res) => {
         credits_used: 0,
         credits_limit: 5,
         seats: 1,
-        trial_used: false,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        trial_used: false
       });
       if (error) throw error;
       console.log(`New user created: ${email}`);
     } else if (existingUser.plan === 'free') {
       // Legacy user — migrate to trial
       await supabaseAdmin.from('users')
-        .update({ plan: 'trial', updated_at: new Date().toISOString() })
+        .update({ plan: 'trial' })
         .eq('email', email);
     }
 
@@ -289,14 +283,12 @@ app.post('/auth/verify', async (req, res) => {
         credits_used: 0,
         credits_limit: 5,
         seats: 1,
-        trial_used: false,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        trial_used: false
       });
     } else if (existingUser.plan === 'free' && existingUser.credits_limit > 0) {
       // Migrate legacy "free" plan users to "trial" so they can use their credits
       await supabaseAdmin.from('users')
-        .update({ plan: 'trial', updated_at: new Date().toISOString() })
+        .update({ plan: 'trial' })
         .eq('email', email);
     }
 
@@ -539,8 +531,7 @@ app.post('/api/enterprise-contact', async (req, res) => {
         email,
         company,
         phone: phone || null,
-        message: message || null,
-        created_at: new Date().toISOString()
+        message: message || null
       });
 
     if (error) throw error;
@@ -761,8 +752,7 @@ ${contractContent}`;
     await supabaseAdmin
       .from('users')
       .update({
-        credits_used: user.credits_used + creditCost,
-        updated_at: new Date().toISOString()
+        credits_used: user.credits_used + creditCost
       })
       .eq('email', email);
 
@@ -774,8 +764,7 @@ ${contractContent}`;
         analysis: JSON.stringify(result),
         page_count: pageCount,
         credit_cost: creditCost,
-        contract_type: docType,
-        created_at: new Date().toISOString()
+        contract_type: docType
       });
 
     const usageObj = {
@@ -817,8 +806,7 @@ app.post('/api/reset-test', async (req, res) => {
       .update({
         credits_used: 0,
         credits_limit: 5,
-        plan: 'trial',
-        updated_at: new Date().toISOString()
+        plan: 'trial'
       })
       .eq('email', email);
 
