@@ -563,12 +563,32 @@ function showSection(section) {
   if (section === 'pricing') updatePricingDisplay(isAnnual);
 }
 
-function startSession() {
+async function startSession() {
   const email = document.getElementById('gateEmail').value.trim();
   if (!email || !email.includes('@')) { alert('Please enter a valid email address.'); return; }
-  currentEmail = email;
-  localStorage.setItem('cs_email', email);
-  showApp();
+
+  const btn = event.target;
+  btn.disabled = true;
+  btn.textContent = 'Loading…';
+
+  try {
+    const res = await fetch('/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email })
+    });
+    const data = await res.json();
+    if (!res.ok) { alert(data.error || 'Could not sign in. Please try again.'); return; }
+    currentEmail = email;
+    localStorage.setItem('cs_email', email);
+    showApp();
+  } catch(e) {
+    alert('Connection error. Please try again.');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Get Started →';
+  }
+}
 }
 
 function signOut() {
