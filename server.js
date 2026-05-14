@@ -165,10 +165,10 @@ const PLANS = {
   team: { analyses: 250, seats: 4, monthlyPrice: 119, annualPrice: 101.15 }
 };
 
-// Credit cost by page count
+// Credit cost by page count - matches pricing page
 function getDocumentCreditCost(pageCount) {
-  if (pageCount <= 5) return 1;
-  if (pageCount <= 20) return 2;
+  if (pageCount <= 25) return 1;
+  if (pageCount <= 70) return 2;
   return 3;
 }
 
@@ -234,7 +234,6 @@ app.post('/auth/verify', async (req, res) => {
       .single();
 
     if (!existingUser) {
-      // FIX 2: Changed credits_limit from 3 to 5 for new trial users
       await supabaseAdmin.from('users').insert({
         email,
         plan: 'trial',
@@ -245,6 +244,11 @@ app.post('/auth/verify', async (req, res) => {
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       });
+    } else if (existingUser.plan === 'free' && existingUser.credits_limit > 0) {
+      // Migrate legacy "free" plan users to "trial" so they can use their credits
+      await supabaseAdmin.from('users')
+        .update({ plan: 'trial', updated_at: new Date().toISOString() })
+        .eq('email', email);
     }
 
     res.json({ success: true, session: data.session, user: data.user });
@@ -774,6 +778,8 @@ app.post('/api/reset-test', async (req, res) => {
       .from('users')
       .update({
         credits_used: 0,
+        credits_limit: 5,
+        plan: 'trial',
         updated_at: new Date().toISOString()
       })
       .eq('email', email);
