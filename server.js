@@ -745,7 +745,7 @@ ${contractContent}`;
       creditCost,
       analysesUsed: user.credits_used + creditCost,
       analysesLimit: user.credits_limit,
-      analysesRemaining: remainingAnalyses - creditCost
+      creditsRemaining: remainingAnalyses - creditCost
     };
 
     if (willRemainAfter <= warningThreshold && willRemainAfter > 0) {
