@@ -631,88 +631,48 @@ app.post('/api/analyze', async (req, res) => {
     const willRemainAfter = remainingAnalyses - creditCost;
     const docType = contractType || 'auto-detect';
 
-    const systemPrompt = `You are an expert contract attorney with 30 years of experience analyzing commercial contracts. You provide thorough, practical analysis that helps business people and attorneys understand contracts quickly and completely.
+    const systemPrompt = `You are an expert contract attorney with 30 years of experience analyzing commercial contracts. You respond ONLY with valid JSON — no markdown, no preamble, no explanation outside the JSON object.`;
 
-Your analysis must be structured, comprehensive, and written in plain English that non-lawyers can understand, while also being substantive enough for attorney review.`;
+    const userPrompt = `Analyze this contract and return ONLY a valid JSON object with this exact structure (no markdown, no backticks, just raw JSON):
 
-    const userPrompt = `Please analyze the following contract and provide a comprehensive analysis in this exact format:
+{
+  "docTitle": "short descriptive title of the contract",
+  "contractType": "type of contract",
+  "docDate": "effective date or null",
+  "governingLaw": "governing state/jurisdiction or null",
+  "plainSummary": "2-3 sentence plain English summary of what this contract does",
+  "executiveSummary": ["bullet 1", "bullet 2", "bullet 3", "bullet 4"],
+  "purpose": "one sentence describing the overall purpose",
+  "parties": [
+    {"name": "Party A name", "role": "their role"},
+    {"name": "Party B name", "role": "their role"}
+  ],
+  "keyTerms": [
+    {"term": "term name", "detail": "plain English explanation", "marketContext": "is this standard, favorable, or unusual?"},
+    ...up to 10 terms
+  ],
+  "obligations": [
+    {"party": "Party name or Both", "obligation": "what they must do"},
+    ...up to 10 obligations
+  ],
+  "redFlags": [
+    {"title": "risk title", "severity": "high|medium|low", "detail": "explanation", "consequence": "practical impact", "suggestedLanguage": "suggested replacement language or null"},
+    ...
+  ],
+  "legalViolations": [
+    {"title": "issue title", "citation": "statute or case citation", "provision": "contract provision at issue", "detail": "explanation"},
+    ...or empty array if none
+  ],
+  "negotiationPoints": ["point 1", "point 2", ...up to 6],
+  "missing": ["missing provision 1", "missing provision 2", ...],
+  "clarifications": ["question 1", "question 2", ...up to 5],
+  "autoRenewal": {"present": true/false, "description": "description or null"},
+  "balance": {"score": 0-100, "label": "Balanced|Favors Party A|Favors Party B", "explanation": "brief explanation"},
+  "overallTone": "brief tone description"
+}
 
-## CONTRACT OVERVIEW
-**Document Type:** [Identify the specific type of contract]
-**Jurisdiction:** [Identify governing law/jurisdiction if stated, or note if not specified]
-**Parties:** [List all parties and their roles]
-**Effective Date:** [State the effective date or execution date]
-**Contract Value/Consideration:** [State the value, payment terms, or consideration]
-
-## PLAIN ENGLISH SUMMARY
-Provide a 3-5 paragraph plain English summary of what this contract does, what each party is agreeing to, and the overall purpose and effect of the agreement. Write this as if explaining to a smart business person who is not a lawyer.
-
-## KEY TERMS AND CONDITIONS
-List and explain the 8-12 most important terms, provisions, and conditions in the contract. For each one:
-- **[Term Name]:** Explain what it means in plain English and why it matters
-
-## CRITICAL CLAUSES ANALYSIS
-Analyze these specific clause types if present:
-- **Termination:** Who can terminate, under what conditions, with what notice, and what are the consequences
-- **Renewal/Extension:** Auto-renewal provisions, notice requirements, renewal terms
-- **Exclusivity:** Any exclusivity provisions and their scope and duration
-- **Intellectual Property:** Ownership, licensing, work-for-hire provisions
-- **Confidentiality/NDA:** Scope, duration, exceptions, and obligations
-- **Non-Compete/Non-Solicitation:** Scope, geography, duration, enforceability concerns
-- **Indemnification:** Who indemnifies whom, scope of indemnification, limitations
-- **Limitation of Liability:** Caps on damages, exclusions, consequential damages waivers
-- **Force Majeure:** Scope and effect of force majeure provisions
-- **Dispute Resolution:** Arbitration, mediation, litigation, venue, governing law
-
-## FINANCIAL TERMS
-Detail all financial provisions including:
-- Payment amounts, schedules, and methods
-- Late payment penalties or interest
-- Price adjustment mechanisms
-- Expense reimbursement
-- Taxes and fees allocation
-- Financial penalties or liquidated damages
-
-## RISK ASSESSMENT
-### High Risk Items 🔴
-List provisions that create significant risk or liability exposure
-
-### Medium Risk Items 🟡
-List provisions that warrant attention or negotiation
-
-### Favorable Provisions 🟢
-List provisions that are favorable or protective
-
-## MARKET CONTEXT
-- Are the terms favorable, unfavorable, or market-standard?
-- What provisions are unusual or non-standard?
-- How does this compare to typical industry practice?
-
-## PRACTICAL CONSEQUENCES
-- What happens if either party breaches this contract?
-- What are the real-world consequences of the key obligations?
-- What practical risks should the parties be aware of?
-
-## UCC CONSIDERATIONS
-If this contract involves the sale of goods, analyze applicable UCC provisions including implied warranties, risk of loss, and any warranty disclaimers.
-
-## RECOMMENDED REDLINES
-Provide 5-8 specific suggested modifications:
-1. **[Clause to modify]:** Current concern → Suggested revision
-2. [Continue for each recommendation]
-
-## MISSING PROVISIONS
-Identify important provisions absent from this contract.
-
-## SUMMARY OF ACTION ITEMS
-Prioritized list of:
-- Issues requiring immediate attention before signing
-- Provisions to negotiate
-- Missing items to add
-- Items to confirm with client
-
----
-CONTRACT TEXT TO ANALYZE:
+CONTRACT TYPE CONTEXT: ${docType}
+CONTRACT TEXT:
 ${contractContent}`;
 
     const message = await anthropic.messages.create({
@@ -722,7 +682,32 @@ ${contractContent}`;
       messages: [{ role: 'user', content: userPrompt }]
     });
 
-    const analysis = message.content[0].text;
+    let result;
+    try {
+      const raw = message.content[0].text.replace(/^```json\s*/,'').replace(/^```\s*/,'').replace(/```\s*$/,'').trim();
+      result = JSON.parse(raw);
+    } catch(parseErr) {
+      console.error('JSON parse error:', parseErr);
+      // Fallback: wrap raw text in a minimal result object
+      result = {
+        docTitle: filename || 'Contract Analysis',
+        contractType: docType,
+        plainSummary: message.content[0].text.substring(0, 500),
+        executiveSummary: ['Analysis completed — see plain summary above'],
+        purpose: '',
+        parties: [],
+        keyTerms: [],
+        obligations: [],
+        redFlags: [],
+        legalViolations: [],
+        negotiationPoints: [],
+        missing: [],
+        clarifications: [],
+        autoRenewal: { present: false },
+        balance: { score: 50, label: 'Unknown', explanation: '' },
+        overallTone: ''
+      };
+    }
 
     await supabaseAdmin
       .from('users')
@@ -737,23 +722,27 @@ ${contractContent}`;
       .insert({
         user_email: email,
         filename: filename || 'Contract Analysis',
-        analysis,
+        analysis: JSON.stringify(result),
         page_count: pageCount,
         credit_cost: creditCost,
         contract_type: docType,
         created_at: new Date().toISOString()
       });
 
-    // FIX 1: Renamed analysesRemaining → creditsRemaining to match index.html expectations
+    const usageObj = {
+      creditsRemaining: remainingAnalyses - creditCost,
+      creditsLimit: user.credits_limit,
+      creditCost,
+      pageCount,
+      plan: user.plan,
+      subscribed: user.plan !== 'trial' && user.plan !== 'free'
+    };
+
     const responseData = {
       success: true,
-      analysis,
-      filename: filename || 'Contract Analysis',
-      pageCount,
-      creditCost,
-      analysesUsed: user.credits_used + creditCost,
-      analysesLimit: user.credits_limit,
-      creditsRemaining: remainingAnalyses - creditCost
+      result,
+      usage: usageObj,
+      filename: filename || 'Contract Analysis'
     };
 
     if (willRemainAfter <= warningThreshold && willRemainAfter > 0) {
