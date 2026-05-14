@@ -276,7 +276,7 @@ app.get('/api/status', async (req, res) => {
       seats: user.seats,
       period_end: user.period_end,
       trial_used: user.trial_used,
-      subscribed: user.plan !== 'trial' && user.plan !== 'free'
+      subscribed: user.plan !== 'trial' && user.plan !== 'free',
       creditsRemaining: user.credits_limit - user.credits_used,
       creditsLimit: user.credits_limit,
       });
@@ -309,7 +309,7 @@ app.get('/user/status', async (req, res) => {
       seats: user.seats,
       period_end: user.period_end,
       trial_used: user.trial_used,
-      subscribed: user.plan !== 'trial' && user.plan !== 'free'
+      subscribed: user.plan !== 'trial' && user.plan !== 'free',
       creditsRemaining: user.credits_limit - user.credits_used,
       creditsLimit: user.credits_limit,
       });
