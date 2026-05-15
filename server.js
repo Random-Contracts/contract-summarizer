@@ -53,10 +53,8 @@ app.post('/webhook', express.raw({ type: 'application/json' }), async (req, res)
               stripe_customer_id: session.customer,
               credits_used: 0,
               credits_limit: plan.analyses,
-              seats: plan.seats,
               period_start: periodStart.toISOString(),
-              period_end: periodEnd.toISOString(),
-              trial_used: true
+              period_end: periodEnd.toISOString()
             }, { onConflict: 'email' });
 
           if (error) console.error('Error updating user after checkout:', error);
@@ -207,9 +205,7 @@ app.post('/auth/register', async (req, res) => {
         email,
         plan: 'trial',
         credits_used: 0,
-        credits_limit: 5,
-        seats: 1,
-        trial_used: false
+        credits_limit: 5
       });
       if (error) throw error;
       console.log(`New user created: ${email}`);
@@ -281,9 +277,7 @@ app.post('/auth/verify', async (req, res) => {
         email,
         plan: 'trial',
         credits_used: 0,
-        credits_limit: 5,
-        seats: 1,
-        trial_used: false
+        credits_limit: 5
       });
     } else if (existingUser.plan === 'free' && existingUser.credits_limit > 0) {
       // Migrate legacy "free" plan users to "trial" so they can use their credits
@@ -319,9 +313,7 @@ app.get('/api/status', async (req, res) => {
       billing_cycle: user.billing_cycle,
       analyses_used: user.credits_used,
       analyses_limit: user.credits_limit,
-      seats: user.seats,
       period_end: user.period_end,
-      trial_used: user.trial_used,
       subscribed: user.plan !== 'trial' && user.plan !== 'free',
       creditsRemaining: user.credits_limit - user.credits_used,
       creditsLimit: user.credits_limit,
@@ -352,9 +344,7 @@ app.get('/user/status', async (req, res) => {
       billing_cycle: user.billing_cycle,
       analyses_used: user.credits_used,
       analyses_limit: user.credits_limit,
-      seats: user.seats,
       period_end: user.period_end,
-      trial_used: user.trial_used,
       subscribed: user.plan !== 'trial' && user.plan !== 'free',
       creditsRemaining: user.credits_limit - user.credits_used,
       creditsLimit: user.credits_limit,
